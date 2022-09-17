@@ -180,48 +180,6 @@ class Player(pygame.sprite.Sprite):
         else:
             self.hitbox.topleft = x, y
 
-        # old_pos = self.hitbox.topleft
-        # old_v0 = self._v0
-        # old_y0 = self._y0
-        # old_t = self._t
-
-        # self._update_position(walk_movement_x=0, jump_speed=False)
-
-        # if action not in ('die', 'door') and pressed_keys[pygame.K_q]:
-        #     action = 'die'
-        #     self._die()
-
-        # door_to_walk_in = self._choose_door_to_walk_in()
-        # if (
-        #     not action and self._on_ground() and pressed_keys[pygame.K_e]
-        #     and door_to_walk_in
-        # ):
-        #     action = 'door'
-        #     self._door(door_to_walk_in)
-
-        # if not action and self._on_ground() and pressed_buttons[0]:
-        #     action = 'slash'
-        #     self._slash()
-
-        # self.hitbox.topleft = old_pos
-        # self._v0 = old_v0
-        # self._y0 = old_y0
-        # self._t = old_t
-
-        # jump = not action and pressed_keys[pygame.K_w]
-
-        # walk_movement_x = 0
-        # if not action:
-        #     speed = 3
-        #     if pressed_keys[pygame.K_a]:
-        #         walk_movement_x -= speed
-        #     if pressed_keys[pygame.K_d]:
-        #         walk_movement_x += speed
-        # if walk_movement_x:
-        #     self._flip = walk_movement_x < 0
-
-        # self._update_position(walk_movement_x, jump)
-
         self._platforms_standing_on = self._get_platforms_standing_on()
 
         animation = self._choose_animation(action, walk_movement_x)
@@ -232,36 +190,6 @@ class Player(pygame.sprite.Sprite):
 
     def is_dying(self):
         return self._animation.name == 'die'
-
-    # def _update_position(self, walk_movement_x, jump_speed):
-    #     old_pos = self.hitbox.topleft
-
-    #     # adjustment = self._get_position_adjustment_for_platforms_standing_on()
-    #     # self.hitbox.move_ip(adjustment)
-    #     # if adjustment[1] != 0:
-    #     #     self._reset_jump()
-
-    #     self.hitbox.x += walk_movement_x
-
-    #     if jump_speed != 0 and self._on_ground():
-    #         self._jump(6)
-    #     self._t += 1
-    #     y = round(self._y0 - self._v0 * self._t + self._g * self._t ** 2 / 2)
-    #     self.hitbox.y = y
-
-    #     # crushed = False
-
-    #     # if self._animation.name != 'die':
-    #     #     last_move = gelf.hitbox.x - old_pos[0], self.hitbox.y - old_pos[1]
-    #     #     hittable_objects = self._world.get_hittable_objects()
-    #     #     crushed = uncollide_rect(self.hitbox, last_move, hittable_objects)
-    #     #     if self.hitbox.y != y:
-    #     #         self._reset_jump()
-
-    #     last_move = self.hitbox.x - old_pos[0], self.hitbox.y - old_pos[1]
-    #     crushed = self._uncollide(last_move)
-
-    #     return crushed
 
     def _adjust_postition_for_moving_platforms(self):
         adjustment = self._get_position_adjustment_for_platforms_standing_on()
@@ -402,53 +330,6 @@ class Player(pygame.sprite.Sprite):
         self.rect.topleft = self.hitbox.topleft
         self.rect.move_ip(offset)
 
-    # def _uncollide_moving_platforms(self, player_last_move):
-    #     def collision_side(platform):
-    #         relative_x_movement = platform.last_move[0] - player_last_move[0]
-    #         relative_y_movement = platform.last_move[1] - player_last_move[1]
-    #         collision_side = None
-
-    #         if relative_x_movement < 0:
-    #             collision_side = 'right'
-    #         if relative_x_movement > 0:
-    #             collision_side = 'left'
-    #         uncollided_rect = self.hitbox.copy()
-    #         uncollide(uncollided_rect, [platform], collision_side)
-    #         if abs(uncollided_rect.x - self.hitbox.x) <= abs(relative_x_movement):
-    #             return collision_side
-
-    #         if relative_y_movement < 0:
-    #             collision_side = 'bottom'
-    #         if relative_y_movement > 0:
-    #             collision_side = 'top'
-    #         uncollided_rect = self.hitbox.copy()
-    #         uncollide(uncollided_rect, [platform], collision_side)
-    #         if abs(uncollided_rect.y - self.hitbox.y) <= abs(relative_y_movement):
-    #             return collision_side
-
-    #         raise ValueError
-
-    #     player_crushed = False
-
-    #     colliding_platforms = self._colliding_platforms()
-    #     if colliding_platforms:
-    #         colliding_platforms_dict = {}
-    #         for platform in colliding_platforms:
-    #             side = collision_side(platform)
-    #             if side not in colliding_platforms_dict:
-    #                 colliding_platforms_dict[side] = []
-    #             colliding_platforms_dict[side].append(platform)
-
-    #         for side, platforms in colliding_platforms_dict.items():
-    #             uncollide(self.hitbox, platforms, side)
-
-    #         if pygame.sprite.spritecollideany(
-    #             self, self._world.get_hittable_objects(), collided=collide_hitbox
-    #         ):
-    #             player_crushed = True
-
-    #     return player_crushed
-
 
 def uncollide_rect(rect, rect_last_move, hittable_objects):
     undo_y_movement(hittable_objects)
@@ -540,33 +421,6 @@ def get_last_move(sprite):
     if hasattr(sprite, 'last_move'):
         last_move = sprite.last_move
     return last_move
-
-
-# def collision_side(rect, rect_last_move, colliding_sprite):
-#     colliding_sprite_last_move = get_last_move(colliding_sprite)
-#     relative_x_movement = colliding_sprite_last_move[0] - rect_last_move[0]
-#     relative_y_movement = colliding_sprite_last_move[1] - rect_last_move[1]
-#     collision_side = None
-
-#     if relative_x_movement < 0:
-#         collision_side = 'right'
-#     if relative_x_movement > 0:
-#         collision_side = 'left'
-#     uncollided_rect = self.hitbox.copy()
-#     uncollide(uncollided_rect, [platform], collision_side)
-#     if abs(uncollided_rect.x - self.hitbox.x) <= abs(relative_x_movement):
-#         return collision_side
-
-#     if relative_y_movement < 0:
-#         collision_side = 'bottom'
-#     if relative_y_movement > 0:
-#         collision_side = 'top'
-#     uncollided_rect = self.hitbox.copy()
-#     uncollide(uncollided_rect, [platform], collision_side)
-#     if abs(uncollided_rect.y - self.hitbox.y) <= abs(relative_y_movement):
-#         return collision_side
-
-#     raise ValueError
 
 
 def move(rect, new_pos, tiles):
