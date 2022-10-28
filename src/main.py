@@ -808,11 +808,12 @@ class Door(pygame.sprite.Sprite):
         super().__init__()
 
         self.image = load_image('door_closed.png')
+        self._open_door_image = load_image('door_open.png')
         self.rect = self.image.get_rect()
         self.destination_level = destination_level
 
     def open(self):
-        self.image = load_image('door_open.png')
+        self.image = self._open_door_image
 
 
 class MovingPlatform(pygame.sprite.Sprite):
