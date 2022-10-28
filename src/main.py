@@ -17,9 +17,6 @@ TILE_SIZE = 16
 FPS = 60
 
 
-slashes = pygame.sprite.Group()
-
-
 def main():
     pygame.init()
     screen = pygame.display.set_mode(WINDOW_RES)
@@ -29,26 +26,16 @@ def main():
     surface = CameraSurface(camera, SIZE)
     current_level = 0
 
-    def get_level(level_number):
-        world = get_world(level_number)
-        player = Player(world)
-        door_text_viewer = DoorTextViewer(player)
-        water_tiles = water(world.water_level, camera)
-        return world, player, door_text_viewer, water_tiles
-
-    world, player, door_text_viewer, water_tiles = get_level(current_level)
-    camera.sprite_to_follow = player
+    world = create_world(current_level, camera)
 
     font_renderer = FontRenderer()
     font_renderer_2 = FontRenderer2()
 
     while True:
-        if not player.alive:
-            if player.entered_level is not None:
-                current_level = player.entered_level
-            world, player, door_text_viewer, water_tiles = get_level(current_level)
-            camera.sprite_to_follow = player
-            slashes.empty()
+        if not world.player.alive:
+            if world.player.entered_level is not None:
+                current_level = world.player.entered_level
+            world = create_world(current_level, camera)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -56,14 +43,13 @@ def main():
 
         t0 = time.time()
 
-        world.snakes.update()
-        world.moving_platforms.update()
-        player.update()
-        if player.is_dying():
-            camera.sprite_to_follow = None
-        slashes.update()
-        camera.update()
-        water_tiles.update()
+        world.level.snakes.update()
+        world.level.moving_platforms.update()
+        world.player.update()
+        world.player.slashes.update()
+        if not world.player.is_dying():
+            camera.follow(world.player)
+        world.water_tiles.update()
 
         print(f'update: {time.time() - t0:4f} ', end='')
 
@@ -71,16 +57,16 @@ def main():
 
         surface.fill((93, 152, 141))
 
-        water_tiles.draw(surface)
-        world.tiles.draw(surface)
-        world.moving_platforms.draw(surface)
-        world.doors.draw(surface)
-        world.snakes.draw(surface)
-        surface.blit(player.image, player.rect)
-        slashes.draw(surface)
+        world.water_tiles.draw(surface)
+        world.level.tiles.draw(surface)
+        world.level.moving_platforms.draw(surface)
+        world.level.doors.draw(surface)
+        world.level.snakes.draw(surface)
+        surface.blit(world.player.image, world.player.rect)
+        world.player.slashes.draw(surface)
 
         surface.camera_mode = False
-        door_text_viewer.draw(surface)
+        world.door_text_viewer.draw(surface)
         surface.camera_mode = True
 
         text = "LEVEL 1 The quick brown fox jumped over the lazy dog."
@@ -100,7 +86,7 @@ def main():
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, world):
+    def __init__(self, level):
         super().__init__()
 
         animations_list = [
@@ -122,8 +108,9 @@ class Player(pygame.sprite.Sprite):
         self._update_rect()
         self.alive = True
         self.entered_level = None
+        self.slashes = pygame.sprite.Group()
 
-        self._world = world
+        self._level = level
 
         self._g = 0.33
 
@@ -205,7 +192,7 @@ class Player(pygame.sprite.Sprite):
 
     def choose_door_to_walk_in(self):
         door_to_walk_in = None
-        for door in self._world.doors:
+        for door in self._level.doors:
             if door.rect.collidepoint(self.hitbox.center):
                 door_to_walk_in = door
         return door_to_walk_in
@@ -219,7 +206,7 @@ class Player(pygame.sprite.Sprite):
         return crushed
 
     def _uncollide(self, last_move):
-        hittable_objects = self._world.get_hittable_objects()
+        hittable_objects = self._level.get_hittable_objects()
         old_y = self.hitbox.y
         crushed = uncollide_rect(self.hitbox, last_move, hittable_objects)
         if self.hitbox.y != old_y:
@@ -241,10 +228,10 @@ class Player(pygame.sprite.Sprite):
         return x, y
 
     def _get_platforms_standing_on(self):
-        return self._filter_sprites_standing_on(self._world.moving_platforms)
+        return self._filter_sprites_standing_on(self._level.moving_platforms)
 
     def _on_ground(self):
-        hittable_objects = self._world.get_hittable_objects()
+        hittable_objects = self._level.get_hittable_objects()
         return bool(self._filter_sprites_standing_on(hittable_objects))
 
     def _filter_sprites_standing_on(self, group):
@@ -284,7 +271,7 @@ class Player(pygame.sprite.Sprite):
             slash.rect.bottomright = self.hitbox.move(10, 0).bottomleft
         else:
             slash.rect.bottomleft = self.hitbox.move(-10, 0).bottomright
-        slashes.add(slash)
+        self.slashes.add(slash)
 
     def _choose_animation(self, action, x_walk_movement):
         animation = 'idle'
@@ -333,7 +320,7 @@ class Player(pygame.sprite.Sprite):
         self._t = 0
 
     def _move(self, new_pos):
-        move(self.hitbox, new_pos, self._world.get_hittable_objects())
+        move(self.hitbox, new_pos, self._level.get_hittable_objects())
         if self.hitbox.y != new_pos[1]:
             self._reset_jump()
 
@@ -618,14 +605,12 @@ class DoorTextViewer:
 class Camera:
     def __init__(self):
         self.offset = 0, 0
-        self.sprite_to_follow = None
 
-    def update(self):
-        if self.sprite_to_follow:
-            hitbox = get_hitbox(self.sprite_to_follow)
-            x = (WIDTH - hitbox.width) // 2 - hitbox.x
-            y = (HEIGHT - hitbox.height) // 2 - hitbox.y
-            self.offset = x, y
+    def follow(self, sprite):
+        hitbox = get_hitbox(sprite)
+        x = (WIDTH - hitbox.width) // 2 - hitbox.x
+        y = (HEIGHT - hitbox.height) // 2 - hitbox.y
+        self.offset = x, y
 
     def rect_view(self):
         return pygame.Rect((-self.offset[0], -self.offset[1]), SIZE)
@@ -660,7 +645,7 @@ class CameraSurface(pygame.Surface):
 
 
 @dataclasses.dataclass
-class World:
+class Level:
     tiles: pygame.sprite.Group
     doors: pygame.sprite.Group
     snakes: pygame.sprite.Group
@@ -673,7 +658,7 @@ class World:
         return hittable_objects
 
 
-def get_world(level_number):
+def create_level(level_number):
     level_data = levels.get_level_data(level_number)
 
     tiles = tiles_from_str(level_data.tiles_str)
@@ -715,7 +700,23 @@ def get_world(level_number):
 
     water_level = level_data.tiles_str.count('\n') * TILE_SIZE
 
-    return World(tiles, doors, snakes, moving_platforms, water_level)
+    return Level(tiles, doors, snakes, moving_platforms, water_level)
+
+
+@dataclasses.dataclass
+class World:
+    level: Level
+    player: Player
+    door_text_viewer: DoorTextViewer
+    water_tiles: pygame.sprite.Group
+
+
+def create_world(level_number, camera):
+    level = create_level(level_number)
+    player = Player(level)
+    door_text_viewer = DoorTextViewer(player)
+    water_tiles = water(level.water_level, camera)
+    return World(level, player, door_text_viewer, water_tiles)
 
 
 def water(water_level, camera):
