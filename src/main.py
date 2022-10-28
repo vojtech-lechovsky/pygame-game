@@ -32,17 +32,21 @@ def main():
     def get_level(level_number):
         world = get_world(level_number)
         player = Player(world)
+        door_text_viewer = DoorTextViewer(player)
         water_tiles = water(world.water_level, camera)
-        return world, player, water_tiles
+        return world, player, door_text_viewer, water_tiles
 
-    world, player, water_tiles = get_level(current_level)
+    world, player, door_text_viewer, water_tiles = get_level(current_level)
     camera.sprite_to_follow = player
+
+    font_renderer = FontRenderer()
+    font_renderer_2 = FontRenderer2()
 
     while True:
         if not player.alive:
             if player.entered_level is not None:
                 current_level = player.entered_level
-            world, player, water_tiles = get_level(current_level)
+            world, player, door_text_viewer, water_tiles = get_level(current_level)
             camera.sprite_to_follow = player
             slashes.empty()
 
@@ -74,6 +78,14 @@ def main():
         world.snakes.draw(surface)
         surface.blit(player.image, player.rect)
         slashes.draw(surface)
+
+        surface.camera_mode = False
+        door_text_viewer.draw(surface)
+        surface.camera_mode = True
+
+        text = "LEVEL 1 The quick brown fox jumped over the lazy dog."
+        font_renderer.draw(surface, (22 * TILE_SIZE, 0 * TILE_SIZE), text)
+        font_renderer_2.draw(surface, (22 * TILE_SIZE, 16), text)
 
         t02 = time.time()
         upscaled = pygame.transform.scale(surface, WINDOW_RES)
@@ -146,7 +158,7 @@ class Player(pygame.sprite.Sprite):
             action = 'die'
             self._die()
 
-        door_to_walk_in = self._choose_door_to_walk_in()
+        door_to_walk_in = self.choose_door_to_walk_in()
         if (
             not action and self._on_ground() and pressed_keys[pygame.K_e]
             and door_to_walk_in
@@ -190,6 +202,13 @@ class Player(pygame.sprite.Sprite):
 
     def is_dying(self):
         return self._animation.name == 'die'
+
+    def choose_door_to_walk_in(self):
+        door_to_walk_in = None
+        for door in self._world.doors:
+            if door.rect.collidepoint(self.hitbox.center):
+                door_to_walk_in = door
+        return door_to_walk_in
 
     def _adjust_postition_for_moving_platforms(self):
         adjustment = self._get_position_adjustment_for_platforms_standing_on()
@@ -266,13 +285,6 @@ class Player(pygame.sprite.Sprite):
         else:
             slash.rect.bottomleft = self.hitbox.move(-10, 0).bottomright
         slashes.add(slash)
-
-    def _choose_door_to_walk_in(self):
-        door_to_walk_in = None
-        for door in self._world.doors:
-            if door.rect.collidepoint(self.hitbox.center):
-                door_to_walk_in = door
-        return door_to_walk_in
 
     def _choose_animation(self, action, x_walk_movement):
         animation = 'idle'
@@ -589,6 +601,20 @@ class Animation:
         self.next_index = 0
 
 
+class DoorTextViewer:
+    def __init__(self, player):
+        self._player = player
+        self._font_renderer = FontRenderer()
+
+    def draw(self, surface):
+        door = self._player.choose_door_to_walk_in()
+        if door:
+            text = 'LEVEL ' + str(door.destination_level)
+            rect = self._font_renderer.calculate_rect(text)
+            rect.midtop = WIDTH // 2, 32
+            self._font_renderer.draw(surface, rect.topleft, text)
+
+
 class Camera:
     def __init__(self):
         self.offset = 0, 0
@@ -608,13 +634,18 @@ class Camera:
 class CameraSurface(pygame.Surface):
     def __init__(self, camera, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.camera_mode = True
         self._camera = camera
 
     def blit(self, source, dest, area=None, special_flags=0):
+        if not self.camera_mode:
+            return super().blit(source, dest, area, special_flags)
         new_dest = self._adjust_dest(dest)
         return super().blit(source, new_dest, area, special_flags)
 
     def blits(self, blit_sequence, doreturn=1):
+        if not self.camera_mode:
+            return super().blits(blit_sequence, doreturn)
         new_blit_sequence = []
         for blit in blit_sequence:
             new_blit = (blit[0], self._adjust_dest(blit[1])) + blit[2:]
@@ -832,6 +863,132 @@ def tiles_from_str(string):
             if not tile_type == '--':
                 tiles.add(Tile(tile_type, (i // 2, y)))
     return tiles
+
+
+# class FontRenderer:
+#     def __init__(self, font_name):
+#         self._characters = (
+#             r""" !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO"""
+#             r"""PQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~"""
+#         )
+#         images = load_images(font_name)
+#         for image in images:
+#             if font_name == 'font2':
+#                 image.set_colorkey((0, 0, 0))
+#             image.lock()
+#             width, height = image.get_size()
+#             for x in range(width):
+#                 for y in range(height):
+#                     if image.get_at((x, y)) == pygame.Color(255, 255, 255):
+#                         image.set_at((x, y), pygame.Color(234, 255, 242))
+#                     if (
+#                         font_name == 'font'
+#                         and image.get_at((x, y)) == pygame.Color(0, 0, 0)
+#                     ):
+#                         image.set_at((x, y), pygame.Color(39, 32, 52))
+#             image.unlock()
+#         self._images = {}
+#         for character, image in zip(self._characters, images):
+#             self._images[character] = image
+#         self._character_width = images[0].get_width()
+
+#     def draw(self, surface, position, text):
+#         for i, character in enumerate(text):
+#             if character != ' ' and character in self._characters:
+#                 image = self._images[character]
+#                 kerning = -1
+#                 x = position[0] + i * (self._character_width + kerning)
+#                 y = position[1]
+#                 surface.blit(image, (x, y))
+
+
+class FontRenderer:
+    def __init__(self):
+        self._characters = (
+            r""" !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO"""
+            r"""PQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~"""
+        )
+
+        images = load_images('font')
+        for image in images:
+            image.lock()
+            width, height = image.get_size()
+            for x in range(width):
+                for y in range(height):
+                    if image.get_at((x, y)) == pygame.Color(255, 255, 255):
+                        image.set_at((x, y), pygame.Color(234, 255, 242))
+                    if image.get_at((x, y)) == pygame.Color(0, 0, 0):
+                        image.set_at((x, y), pygame.Color(39, 32, 52))
+            image.unlock()
+        self._images = {}
+        for character, image in zip(self._characters, images):
+            self._images[character] = image
+
+        self._character_widths = {}
+        fontdef_file = open('assets/font/fontdef.txt', encoding='utf-8')
+        for line in fontdef_file:
+            character = line[0]
+            width = line[2:-1]
+            self._character_widths[character] = int(width)
+        self._character_height = images[0].get_height()
+        self._kerning = -1
+
+    def calculate_rect(self, text):
+        width = 0
+        for character in text:
+            if character not in self._characters:
+                character = ' '
+            width += self._character_widths[character] + self._kerning
+        return pygame.Rect(0, 0, width, self._character_height)
+
+    def draw(self, surface, position, text):
+        x = position[0]
+        y = position[1]
+        for character in text:
+            if character not in self._characters:
+                character = ' '
+            if character != ' ':
+                image = self._images[character]
+                surface.blit(image, (x, y))
+            x += self._character_widths[character] + self._kerning
+
+
+class FontRenderer2:
+    def __init__(self):
+        self._characters = (
+            r""" !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNO"""
+            r"""PQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~"""
+        )
+
+        images = load_images('font2')
+        for image in images:
+            image.set_colorkey((0, 0, 0))
+            image.lock()
+            width, height = image.get_size()
+            for x in range(width):
+                for y in range(height):
+                    if image.get_at((x, y)) == pygame.Color(255, 255, 255):
+                        image.set_at((x, y), pygame.Color(234, 255, 242))
+            image.unlock()
+        self._images = {}
+        for character, image in zip(self._characters, images):
+            self._images[character] = image
+
+        self._character_width = images[0].get_width()
+        self._character_height = images[0].get_height()
+        self._kerning = -1
+
+    def calculate_rect(self, text):
+        width = len(text) * (self._character_width + self._kerning)
+        return pygame.Rect(0, 0, width, self._character_height)
+
+    def draw(self, surface, position, text):
+        for i, character in enumerate(text):
+            if character in self._characters:
+                image = self._images[character]
+                x = position[0] + i * (self._character_width + self._kerning)
+                y = position[1]
+                surface.blit(image, (x, y))
 
 
 _images = {}

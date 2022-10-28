@@ -1,0 +1,19 @@
+Font
+====
+https://opengameart.org/content/bitmap-font
+Title: Bitmap Font
+Author: Clint Bellanger
+
+
+Font 2
+======
+https://opengameart.org/content/ascii-bitmap-font-oldschool
+Title: ASCII Bitmap Font "oldschool"
+Author: domsson
+
+
+All images (except for doors)
+=============================
+https://opengameart.org/content/a-platformer-in-the-forest
+Title: A platformer in the forest
+Author: Buch
