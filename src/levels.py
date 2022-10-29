@@ -4,7 +4,7 @@ import collections
 LevelData = collections.namedtuple(
     'LevelData', 'tiles_str doors snakes moving_platforms'
 )
-DoorData = collections.namedtuple('DoorData', 'x y destination_level')
+DoorData = collections.namedtuple('DoorData', 'x y destination_level start')
 SnakeData = collections.namedtuple('SnakeData', 'x_movement_start_end y')
 MovingPlatformData = collections.namedtuple(
     'MovingPlatformData', 'tiles_str destinations'
@@ -30,7 +30,15 @@ MovingPlatformData = collections.namedtuple(
 # gd - grass-dirt transition
 
 
+MIN_LEVEL_NUMBER = 0
+MAX_LEVEL_NUMBER = 2
+
+
 def get_level_data(level):
+    doors = tuple()
+    snakes = tuple()
+    moving_platforms = tuple()
+
     if level == 0:
         tiles_str = """\
 ----------------------------------------------------------------------------------
@@ -46,7 +54,8 @@ g3------------------------------------------------------------------------------
 ------g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3--g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3--
 """
         doors = (
-            DoorData(24, 6, destination_level=1),
+            DoorData(24, 6, destination_level=1, start=True),
+            DoorData(33, 6, destination_level=2, start=True),
         )
         snakes = (
             SnakeData((36, 40), 1),
@@ -492,9 +501,24 @@ w3------------------------------------------------------------------------------
 g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3
 """
         doors = (
-            DoorData(2, 10, destination_level=0),
+            DoorData(2, 10, destination_level=0, start=True),
         )
-        snakes = tuple()
-        moving_platforms = tuple()
+    elif level == 2:
+        tiles_str = """
+------------------------------
+------------------------------
+------------------------------
+------------------------------
+------------------------------
+------------------------------
+------------------------------
+------------------------------
+------------------------------
+g3g3g3g3g3g3g3g3g3g3g3g3g3g3g3
+"""
+        doors = (
+            DoorData(1, 9, destination_level=0, start=True),
+            DoorData(12, 9, destination_level=0, start=False),
+        )
 
     return LevelData(tiles_str, doors, snakes, moving_platforms)

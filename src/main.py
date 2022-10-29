@@ -24,18 +24,30 @@ def main():
 
     camera = Camera()
     surface = CameraSurface(camera, SIZE)
-    current_level = 0
 
-    world = create_world(current_level, camera)
+    current_level = 0
+    previous_level = 1
+    level_completions = {}
+    for i in range(levels.MIN_LEVEL_NUMBER, levels.MAX_LEVEL_NUMBER + 1):
+        level_completions[i] = LevelCompletion(i, False)
+
+    world = create_world(
+        current_level, previous_level, level_completions, camera
+    )
 
     font_renderer = FontRenderer()
     font_renderer_2 = FontRenderer2()
 
     while True:
         if not world.player.alive:
-            if world.player.entered_level is not None:
-                current_level = world.player.entered_level
-            world = create_world(current_level, camera)
+            if world.player.entered_door is not None:
+                previous_level = current_level
+                current_level = world.player.entered_door.destination_level
+                if not world.player.entered_door.start:
+                    level_completions[previous_level].completed = True
+            world = create_world(
+                current_level, previous_level, level_completions, camera
+            )
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -86,7 +98,7 @@ def main():
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, level):
+    def __init__(self, midbottom, level):
         super().__init__()
 
         animations_list = [
@@ -103,11 +115,11 @@ class Player(pygame.sprite.Sprite):
         self.image = self._animation.next()
         self._flip = False
         self.hitbox = pygame.Rect(0, 0, 15, 22)
-        self.hitbox.midbottom = 24.5 * TILE_SIZE, 7 * TILE_SIZE
+        self.hitbox.midbottom = midbottom
         self.rect = self.image.get_rect()
         self._update_rect()
         self.alive = True
-        self.entered_level = None
+        self.entered_door = None
         self.slashes = pygame.sprite.Group()
 
         self._level = level
@@ -262,7 +274,7 @@ class Player(pygame.sprite.Sprite):
 
     def _door(self, door_to_walk_in):
         door_to_walk_in.open()
-        self.entered_level = door_to_walk_in.destination_level
+        self.entered_door = door_to_walk_in
         self.hitbox.midbottom = door_to_walk_in.rect.midbottom
 
     def _slash(self):
@@ -589,8 +601,9 @@ class Animation:
 
 
 class DoorTextViewer:
-    def __init__(self, player):
+    def __init__(self, player, level_completions):
         self._player = player
+        self._level_completions = level_completions
         self._font_renderer = FontRenderer()
 
     def draw(self, surface):
@@ -600,6 +613,12 @@ class DoorTextViewer:
             rect = self._font_renderer.calculate_rect(text)
             rect.midtop = WIDTH // 2, 32
             self._font_renderer.draw(surface, rect.topleft, text)
+
+            if self._level_completions[door.destination_level].completed:
+                text2 = '(COMPLETED)'
+                rect2 = self._font_renderer.calculate_rect(text2)
+                rect2.midtop = rect.centerx, rect.bottom
+                self._font_renderer.draw(surface, rect2.topleft, text2)
 
 
 class Camera:
@@ -665,7 +684,7 @@ def create_level(level_number):
 
     doors = pygame.sprite.Group()
     for door_data in level_data.doors:
-        door = Door(door_data.destination_level)
+        door = Door(door_data.destination_level, door_data.start)
         x = door_data.x * TILE_SIZE
         y = (door_data.y + 1) * TILE_SIZE
         door.rect.bottomleft = x, y
@@ -711,12 +730,21 @@ class World:
     water_tiles: pygame.sprite.Group
 
 
-def create_world(level_number, camera):
+def create_world(level_number, prev_level_number, level_completions, camera):
     level = create_level(level_number)
-    player = Player(level)
-    door_text_viewer = DoorTextViewer(player)
+    starting_door = choose_door_to_start_at(level, prev_level_number)
+    player = Player(starting_door.rect.midbottom, level)
+    door_text_viewer = DoorTextViewer(player, level_completions)
     water_tiles = water(level.water_level, camera)
     return World(level, player, door_text_viewer, water_tiles)
+
+
+def choose_door_to_start_at(level, prev_level_number):
+    doors = []
+    for door in level.doors:
+        if door.destination_level == prev_level_number and door.start:
+            doors.append(door)
+    return doors[0]
 
 
 def water(water_level, camera):
@@ -804,13 +832,17 @@ def least_multiple(origin, step, min_value):
 
 
 class Door(pygame.sprite.Sprite):
-    def __init__(self, destination_level):
+    def __init__(self, destination_level, start):
         super().__init__()
 
-        self.image = load_image('door_closed.png')
+        if start:
+            self.image = load_image('door_closed.png')
+        else:
+            self.image = load_image('door_closed_finish.png')
         self._open_door_image = load_image('door_open.png')
         self.rect = self.image.get_rect()
         self.destination_level = destination_level
+        self.start = start
 
     def open(self):
         self.image = self._open_door_image
@@ -865,6 +897,12 @@ def tiles_from_str(string):
             if not tile_type == '--':
                 tiles.add(Tile(tile_type, (i // 2, y)))
     return tiles
+
+
+@dataclasses.dataclass
+class LevelCompletion:
+    level_number: int
+    completed: bool
 
 
 # class FontRenderer:
