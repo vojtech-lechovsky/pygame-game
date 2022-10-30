@@ -114,23 +114,24 @@ class Player(pygame.sprite.Sprite):
 
         self.image = self._animation.next()
         self._flip = False
-        self.hitbox = pygame.Rect(0, 0, 15, 22)
-        self.hitbox.midbottom = midbottom
+
+        rect = pygame.Rect(0, 0, 15, 22)
+        rect.midbottom = midbottom
+        self._physical_body = PhysicalBody(
+            rect, level.get_hittable_objects(), level.moving_platforms
+        )
+
+        self.hitbox = pygame.Rect(0, 0, 0, 0)
+        self._update_hitbox()
+
         self.rect = self.image.get_rect()
         self._update_rect()
+
         self.alive = True
         self.entered_door = None
         self.slashes = pygame.sprite.Group()
 
         self._level = level
-
-        self._g = 0.33
-
-        self._v0 = 0
-        self._y0 = self.hitbox.y
-        self._t = 0
-
-        self._platforms_standing_on = self._get_platforms_standing_on()
 
     def update(self):
         pressed_keys = pygame.key.get_pressed()
@@ -147,33 +148,41 @@ class Player(pygame.sprite.Sprite):
             action = None
 
         crushed = False
-        if action != 'die':
-            crushed = self._adjust_postition_for_moving_platforms()
+        if action not in ('door', 'die'):
+            crushed = (
+                self._physical_body.adjust_position_after_platforms_moved()
+            )
+            self._update_hitbox()
+
+        jump_speed = 0
 
         if (
             action not in ('die', 'door')
             and (pressed_keys[pygame.K_q] or crushed)
         ):
             action = 'die'
-            self._die()
+            jump_speed = 3
 
         door_to_walk_in = self.choose_door_to_walk_in()
         if (
-            not action and self._on_ground() and pressed_keys[pygame.K_e]
-            and door_to_walk_in
+            not action and self._physical_body.on_ground()
+            and pressed_keys[pygame.K_e] and door_to_walk_in
         ):
             action = 'door'
             self._door(door_to_walk_in)
 
-        if not action and self._on_ground() and pressed_buttons[0]:
+        if (
+            not action and self._physical_body.on_ground()
+            and pressed_buttons[0]
+        ):
             action = 'slash'
             self._slash()
 
-        if not action and self._on_ground() and pressed_keys[pygame.K_w]:
-            self._jump(6)
-
-        self._t += 1
-        y = round(self._y0 - self._v0 * self._t + self._g * self._t ** 2 / 2)
+        if (
+            not action and self._physical_body.on_ground()
+            and pressed_keys[pygame.K_w]
+        ):
+            jump_speed = 6
 
         walk_movement_x = 0
         if not action:
@@ -184,14 +193,13 @@ class Player(pygame.sprite.Sprite):
                 walk_movement_x += speed
         if walk_movement_x:
             self._flip = walk_movement_x < 0
-        x = self.hitbox.x + walk_movement_x
 
-        if action != 'die':
-            self._move((x, y))
-        else:
-            self.hitbox.topleft = x, y
-
-        self._platforms_standing_on = self._get_platforms_standing_on()
+        if action != 'door':
+            collide = action != 'die'
+            self._physical_body.update_position(
+                walk_movement_x, jump_speed, collide
+            )
+            self._update_hitbox()
 
         animation = self._choose_animation(action, walk_movement_x)
         self._set_animation(animation)
@@ -208,69 +216,6 @@ class Player(pygame.sprite.Sprite):
             if door.rect.collidepoint(self.hitbox.center):
                 door_to_walk_in = door
         return door_to_walk_in
-
-    def _adjust_postition_for_moving_platforms(self):
-        adjustment = self._get_position_adjustment_for_platforms_standing_on()
-        self.hitbox.move_ip(adjustment)
-        if adjustment[1] != 0:
-            self._reset_jump()
-        crushed = self._uncollide(adjustment)
-        return crushed
-
-    def _uncollide(self, last_move):
-        hittable_objects = self._level.get_hittable_objects()
-        old_y = self.hitbox.y
-        crushed = uncollide_rect(self.hitbox, last_move, hittable_objects)
-        if self.hitbox.y != old_y:
-            self._reset_jump()
-        return crushed
-
-    def _get_position_adjustment_for_platforms_standing_on(self):
-        if not self._platforms_standing_on:
-            return 0, 0
-        movements_by_y = {}
-        for platform in self._platforms_standing_on:
-            key = platform.last_move[1]
-            value = platform.last_move[0]
-            if key not in movements_by_y:
-                movements_by_y[key] = 0
-            movements_by_y[key] += value
-        y = min(movements_by_y)
-        x = movements_by_y[y]
-        return x, y
-
-    def _get_platforms_standing_on(self):
-        return self._filter_sprites_standing_on(self._level.moving_platforms)
-
-    def _on_ground(self):
-        hittable_objects = self._level.get_hittable_objects()
-        return bool(self._filter_sprites_standing_on(hittable_objects))
-
-    def _filter_sprites_standing_on(self, group):
-        colliding_sprites = self._collide(group)
-        self.hitbox.y += 1
-        sprites = self._collide(group)
-        self.hitbox.y -= 1
-
-        sprites_standing_on = []
-        if self._y0 == self.hitbox.y and self._v0 == 0:
-            for platform in sprites:
-                append = True
-                for colliding_sprite in colliding_sprites:
-                    if platform is colliding_sprite:
-                        append = False
-                if append:
-                    sprites_standing_on.append(platform)
-
-        return sprites_standing_on
-
-    def _collide(self, group):
-        return pygame.sprite.spritecollide(
-            self, group, False, collided=collide_hitbox
-        )
-
-    def _die(self):
-        self._jump(3)
 
     def _door(self, door_to_walk_in):
         door_to_walk_in.open()
@@ -289,7 +234,7 @@ class Player(pygame.sprite.Sprite):
         animation = 'idle'
         if action:
             animation = action
-        elif self._on_ground():
+        elif self._physical_body.on_ground():
             if x_walk_movement:
                 animation = 'walk'
         else:
@@ -312,8 +257,8 @@ class Player(pygame.sprite.Sprite):
             new_alpha = round(256 - fraction * 256)
             self.image.set_alpha(new_alpha)
         elif self._animation.name == 'jump':
-            instantaneous_speed_y = -self._v0 + self._g * self._t
-            if instantaneous_speed_y <= 0:
+            speed_y = self._physical_body.calculate_instantaneous_speed_y()
+            if speed_y <= 0:
                 self.image = self._animation[0]
             else:
                 self.image = self._animation[1]
@@ -321,25 +266,121 @@ class Player(pygame.sprite.Sprite):
         if self._flip:
             self.image = pygame.transform.flip(self.image, True, False)
 
-    def _jump(self, speed):
-        self._v0 = speed
-        self._y0 = self.hitbox.y
-        self._t = 0
-
-    def _reset_jump(self):
-        self._v0 = 0
-        self._y0 = self.hitbox.y
-        self._t = 0
-
-    def _move(self, new_pos):
-        move(self.hitbox, new_pos, self._level.get_hittable_objects())
-        if self.hitbox.y != new_pos[1]:
-            self._reset_jump()
+    def _update_hitbox(self):
+        self.hitbox = self._physical_body.rect.copy()
 
     def _update_rect(self):
         offset = (-9, -10) if not self._flip else (-8, -10)
         self.rect.topleft = self.hitbox.topleft
         self.rect.move_ip(offset)
+
+
+class PhysicalBody:
+    def __init__(self, rect, hittable_objects, moving_platforms):
+        self.rect = rect
+
+        self._hittable_objects = hittable_objects
+        self._moving_platforms = moving_platforms
+
+        self._g = 0.33
+
+        self._v0 = 0
+        self._y0 = self.rect.y
+        self._t = 0
+
+        self._platforms_standing_on = self._get_platforms_standing_on()
+
+    def adjust_position_after_platforms_moved(self):
+        adjustment = self._get_position_adjustment_for_platforms_standing_on()
+        self.rect.move_ip(adjustment)
+        if adjustment[1] != 0:
+            self._reset_jump()
+        crushed = self._uncollide(adjustment)
+        return crushed
+
+    def update_position(self, movement_x, jump_speed, collide):
+        if jump_speed > 0:
+            self._jump(jump_speed)
+
+        self._t += 1
+        y = round(self._y0 - self._v0 * self._t + self._g * self._t ** 2 / 2)
+
+        x = self.rect.x + movement_x
+
+        if collide:
+            self._move((x, y))
+        else:
+            self.rect.topleft = x, y
+
+        self._platforms_standing_on = self._get_platforms_standing_on()
+
+    def on_ground(self):
+        return bool(self._filter_sprites_standing_on(self._hittable_objects))
+
+    def calculate_instantaneous_speed_y(self):
+        return -self._v0 + self._g * self._t
+
+    def _uncollide(self, last_move):
+        old_y = self.rect.y
+        crushed = uncollide_rect(self.rect, last_move, self._hittable_objects)
+        if self.rect.y != old_y:
+            self._reset_jump()
+        return crushed
+
+    def _get_position_adjustment_for_platforms_standing_on(self):
+        if not self._platforms_standing_on:
+            return 0, 0
+        movements_by_y = {}
+        for platform in self._platforms_standing_on:
+            key = platform.last_move[1]
+            value = platform.last_move[0]
+            if key not in movements_by_y:
+                movements_by_y[key] = 0
+            movements_by_y[key] += value
+        y = min(movements_by_y)
+        x = movements_by_y[y]
+        return x, y
+
+    def _get_platforms_standing_on(self):
+        return self._filter_sprites_standing_on(self._moving_platforms)
+
+    def _filter_sprites_standing_on(self, group):
+        colliding_sprites = self._collide(group)
+        self.rect.y += 1
+        sprites = self._collide(group)
+        self.rect.y -= 1
+
+        sprites_standing_on = []
+        if self._y0 == self.rect.y and self._v0 == 0:
+            for platform in sprites:
+                append = True
+                for colliding_sprite in colliding_sprites:
+                    if platform is colliding_sprite:
+                        append = False
+                if append:
+                    sprites_standing_on.append(platform)
+
+        return sprites_standing_on
+
+    def _collide(self, group):
+        return pygame.sprite.spritecollide(
+            self, group, False, collided=collide_hitbox
+        )
+
+    def _jump(self, speed):
+        self._v0 = speed
+        self._y0 = self.rect.y
+        self._t = 0
+
+    def _reset_jump(self):
+        self._v0 = 0
+        self._y0 = self.rect.y
+        self._t = 0
+
+    def _move(self, new_pos):
+        move(self.rect, new_pos, self._hittable_objects)
+        if self.rect.y != new_pos[1]:
+            self._reset_jump()
 
 
 def uncollide_rect(rect, rect_last_move, hittable_objects):
@@ -434,25 +475,25 @@ def get_last_move(sprite):
     return last_move
 
 
-def move(rect, new_pos, tiles):
-    move_x(rect, new_pos[0], tiles)
-    move_y(rect, new_pos[1], tiles)
+def move(rect, new_pos, hittable_objects):
+    move_x(rect, new_pos[0], hittable_objects)
+    move_y(rect, new_pos[1], hittable_objects)
 
 
-def move_x(rect, new_x, tiles):
+def move_x(rect, new_x, hittable_objects):
     old_x = rect.x
     rect.x = new_x
-    hit_list = rectcollide(rect, tiles)
+    hit_list = rectcollide(rect, hittable_objects)
     if rect.x < old_x:
         uncollide(rect, hit_list, 'left')
     elif rect.x > old_x:
         uncollide(rect, hit_list, 'right')
 
 
-def move_y(rect, new_y, tiles):
+def move_y(rect, new_y, hittable_objects):
     old_y = rect.y
     rect.y = new_y
-    hit_list = rectcollide(rect, tiles)
+    hit_list = rectcollide(rect, hittable_objects)
     if rect.y < old_y:
         uncollide(rect, hit_list, 'top')
     elif rect.y > old_y:
