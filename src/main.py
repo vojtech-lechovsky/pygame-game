@@ -826,14 +826,36 @@ def ceil_base(x, base=1):
 
 
 class Tile(pygame.sprite.Sprite):
-    def __init__(self, tile_type, tile_coordinates):
+    def __init__(
+        self, tile_type, tile_coordinates, bg_left_tile_type=None,
+        bg_right_tile_type=None
+    ):
         super().__init__()
 
-        image_filename = self._tile_type_to_filename(tile_type)
-        self.image = load_image(image_filename)
+        self.image = self._create_image(
+            tile_type, bg_left_tile_type, bg_right_tile_type
+        )
         self.rect = self.image.get_rect()
         self.rect.x = tile_coordinates[0] * TILE_SIZE
         self.rect.y = tile_coordinates[1] * TILE_SIZE
+
+    def _create_image(self, tile_type, bg_left_tile_type, bg_right_tile_type):
+        image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        if bg_left_tile_type is not None:
+            area = 0, 0, TILE_SIZE // 2, TILE_SIZE
+            bg_left_image = self._load_tile_image(bg_left_tile_type)
+            image.blit(bg_left_image, (0, 0), area)
+        if bg_right_tile_type is not None:
+            area = TILE_SIZE // 2, 0, TILE_SIZE // 2, TILE_SIZE
+            bg_right_image = self._load_tile_image(bg_right_tile_type)
+            image.blit(bg_right_image, (TILE_SIZE // 2, 0), area)
+        foreground_image = self._load_tile_image(tile_type)
+        image.blit(foreground_image, (0, 0))
+        return image
+
+    def _load_tile_image(self, tile_type):
+        image_filename = self._tile_type_to_filename(tile_type)
+        return load_image(image_filename)
 
     def _tile_type_to_filename(self, tile_type):
         filename = 'tiles/' + tile_type.lower()
@@ -950,8 +972,78 @@ def tiles_from_str(tiles_str):
     for y, line in enumerate(tiles_str.splitlines()):
         for x, tile_type in enumerate(line):
             if tile_type != '-':
-                tiles.add(Tile(tile_type, (x, y)))
+                neighbour_left = '-'
+                if x - 1 >= 0:
+                    neighbour_left = line[x-1]
+                neighbour_right = '-'
+                if x + 1 < len(line):
+                    neighbour_right = line[x+1]
+                bg_left, bg_right = choose_background_for_tile(
+                    neighbour_left, neighbour_right
+                )
+                tiles.add(Tile(tile_type, (x, y), bg_left, bg_right))
     return tiles
+
+
+def choose_background_for_tile(neighbour_left, neighbour_right):
+    bg_left_map = {
+        '0': '0',
+        '1': '0',
+        '2': '2',
+        'a': 'q',
+        'b': 'c',
+        'c': 'c',
+        'd': None,
+        'e': None,
+        'f': None,
+        'g': 'g',
+        'h': 'g',
+        'i': None,
+        'j': None,
+        'k': None,
+        'l': 'n',
+        'm': 'n',
+        'n': 'n',
+        'o': 'c',
+        'p': None,
+        'q': 'q',
+        'r': 'q',
+        '-': None,
+    }
+    bg_left = translate_tile_type(neighbour_left, bg_left_map)
+    bg_right_map = {
+        '0': '0',
+        '1': '0',
+        '2': '2',
+        'a': None,
+        'b': None,
+        'c': 'c',
+        'd': 'c',
+        'e': 'q',
+        'f': 'g',
+        'g': 'g',
+        'h': None,
+        'i': None,
+        'j': None,
+        'k': None,
+        'l': None,
+        'm': 'c',
+        'n': 'n',
+        'o': 'n',
+        'p': 'n',
+        'q': 'q',
+        'r': 'q',
+        '-': None,
+    }
+    bg_right = translate_tile_type(neighbour_right, bg_right_map)
+    return bg_left, bg_right
+
+
+def translate_tile_type(tile_type, translation_map):
+    new_tile_type = translation_map[tile_type.lower()]
+    if new_tile_type is not None and tile_type.isupper():
+        new_tile_type = new_tile_type.upper()
+    return new_tile_type
 
 
 @dataclasses.dataclass
