@@ -288,6 +288,8 @@ class PhysicalBody:
         self._y0 = self.rect.y
         self._t = 0
 
+        self._jumping = False
+
         self._platforms_standing_on = self._get_platforms_standing_on()
 
     def adjust_position_after_platforms_moved(self):
@@ -351,7 +353,7 @@ class PhysicalBody:
         self.rect.y -= 1
 
         sprites_standing_on = []
-        if self._y0 == self.rect.y and self._v0 == 0:
+        if not self._jumping:
             for platform in sprites:
                 append = True
                 for colliding_sprite in colliding_sprites:
@@ -371,11 +373,13 @@ class PhysicalBody:
         self._v0 = speed
         self._y0 = self.rect.y
         self._t = 0
+        self._jumping = True
 
     def _reset_jump(self):
         self._v0 = 0
         self._y0 = self.rect.y
         self._t = 0
+        self._jumping = False
 
     def _move(self, new_pos):
         move(self.rect, new_pos, self._hittable_objects)
