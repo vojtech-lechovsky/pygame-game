@@ -2,6 +2,7 @@ import dataclasses
 import itertools
 import math
 import os
+import string
 import sys
 import time
 
@@ -798,7 +799,7 @@ def water(water_level, camera):
     tile_count = math.ceil(WIDTH / TILE_SIZE) + 1
     for tile_x in range(tile_count):
         tile_coordinates = tile_x, tile_water_level
-        tile = WaterTileTop('w3', tile_coordinates, tile_count, camera)
+        tile = WaterTileTop('2', tile_coordinates, tile_count, camera)
         water_tiles.add(tile)
 
     tile_count_horizontal = tile_count
@@ -807,9 +808,9 @@ def water(water_level, camera):
     tile_count_vertical = ceil_base(tile_count_vertical, base=2)
     for tile_x in range(tile_count_horizontal):
         for tile_y in range(tile_count_vertical):
-            tile_type = '00'
+            tile_type = '0'
             if tile_y % 2 == tile_x % 2:
-                tile_type = 'w0'
+                tile_type = '1'
             tile_coordinates = tile_x, tile_water_level + 1 + tile_y
             tile_counts = tile_count_horizontal, tile_count_vertical
             tile = WaterTileMiddle(
@@ -828,10 +829,20 @@ class Tile(pygame.sprite.Sprite):
     def __init__(self, tile_type, tile_coordinates):
         super().__init__()
 
-        self.image = load_image(tile_type + '.png')
+        image_filename = self._tile_type_to_filename(tile_type)
+        self.image = load_image(image_filename)
         self.rect = self.image.get_rect()
         self.rect.x = tile_coordinates[0] * TILE_SIZE
         self.rect.y = tile_coordinates[1] * TILE_SIZE
+
+    def _tile_type_to_filename(self, tile_type):
+        filename = 'tiles/' + tile_type.lower()
+        if tile_type in string.ascii_lowercase:
+            filename += '_dirt'
+        elif tile_type in string.ascii_uppercase:
+            filename += '_stone'
+        filename += '.png'
+        return filename
 
 
 class WaterTileTop(Tile):
@@ -904,7 +915,7 @@ class MovingPlatform(pygame.sprite.Sprite):
             self._destinations.append((x, y))
         self._next_destination_index = 0
 
-        width = tiles_str.find('\n') // 2 * TILE_SIZE
+        width = tiles_str.find('\n') * TILE_SIZE
         height = tiles_str.count('\n') * TILE_SIZE
         self.rect = pygame.Rect(0, 0, width, height)
         self.rect.bottomleft = self._destinations[0]
@@ -934,13 +945,12 @@ class MovingPlatform(pygame.sprite.Sprite):
                 self._next_destination_index = 0
 
 
-def tiles_from_str(string):
+def tiles_from_str(tiles_str):
     tiles = pygame.sprite.Group()
-    for y, line in enumerate(string.splitlines()):
-        for i in range(0, len(line) - 1, 2):
-            tile_type = line[i:i+2]
-            if not tile_type == '--':
-                tiles.add(Tile(tile_type, (i // 2, y)))
+    for y, line in enumerate(tiles_str.splitlines()):
+        for x, tile_type in enumerate(line):
+            if tile_type != '-':
+                tiles.add(Tile(tile_type, (x, y)))
     return tiles
 
 
