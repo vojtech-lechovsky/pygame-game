@@ -11,25 +11,6 @@ MovingPlatformData = collections.namedtuple(
 )
 
 
-# Tile types:
-#
-# g - grass
-# d - dirt
-# s - stone
-# w - water
-#
-# 0 - middle
-# 1 - left
-# 2 - topleft
-# 3 - top
-# 4 - topright
-# 5 - right
-#
-# 00 - black tile
-# dg - dirt-grass transition
-# gd - grass-dirt transition
-
-
 MIN_LEVEL_NUMBER = 0
 MAX_LEVEL_NUMBER = 2
 
