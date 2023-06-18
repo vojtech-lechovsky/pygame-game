@@ -1,8 +1,8 @@
 import dataclasses
+import functools
 import itertools
 import math
 import os
-import string
 import sys
 import time
 
@@ -71,6 +71,9 @@ def main():
         surface.fill((93, 152, 141))
 
         world.water_tiles.draw(surface)
+        world.level.background_tiles.draw(surface)
+        for renderer in world.level.endless_background_renderers:
+            renderer.draw(surface)
         world.level.tiles.draw(surface)
         world.level.moving_platforms.draw(surface)
         world.level.doors.draw(surface)
@@ -711,6 +714,8 @@ class CameraSurface(pygame.Surface):
 
 @dataclasses.dataclass
 class Level:
+    background_tiles: pygame.sprite.Group()
+    endless_background_renderers: list
     tiles: pygame.sprite.Group
     doors: pygame.sprite.Group
     snakes: pygame.sprite.Group
@@ -723,8 +728,60 @@ class Level:
         return hittable_objects
 
 
-def create_level(level_number):
+def create_level(level_number, camera):
     level_data = levels.get_level_data(level_number)
+
+    bg_tiles_str = level_data.background_tiles_str
+    background_tiles = tiles_from_str(bg_tiles_str, background=True)
+
+    endless_background_renderers = create_endless_background_renderers(
+        bg_tiles_str, camera
+    )
+
+    # tile_images = {
+    #     'a': create_tile_image('a_background'),
+    #     'b': create_tile_image('b_background'),
+    #     'c': create_tile_image('c_background'),
+    #     'd': create_tile_image('d_background'),
+    #     'e': create_tile_image('e_background'),
+    #     'f': create_tile_image('f_background'),
+    #     'g': create_tile_image('g_background'),
+    #     'h': create_tile_image('h_background'),
+    #     'q': create_tile_image('q_background'),
+    #     'r': create_tile_image('r_background'),
+    #     's': create_tile_image('s_background'),
+    #     't': create_tile_image('t_background'),
+    #     'u': create_tile_image('u_background'),
+    #     'v': create_tile_image('v_background'),
+    #     'w': create_tile_image('w_background'),
+    # }
+    # def func_choose_tile(i):
+    #     if i == 0:
+    #         return 'a'
+    #     else:
+    #         if math.log2(i).is_integer():
+    #             return 'r'
+    #         else:
+    #             return 'q'
+    # def func_choose_tile_grid(x, y):
+    #     if (x, y) == (0, 0):
+    #         return 'a'
+    #     else:
+    #         if (x != 0 and math.log2(x).is_integer()) or y % 2 == 0:
+    #             return 'r'
+    #         else:
+    #             return 'q'
+    # if level_number == 2:
+    #     endless_background_renderers.extend([
+    #         EndlessLineOfTilesRenderer((58, 12), (0, -1), camera, tile_images, func_choose_tile),
+    #         EndlessLineOfTilesRenderer((59, -2), (0, 1), camera, tile_images, func_choose_tile),
+    #         EndlessLineOfTilesRenderer((55, 5), (-1, 0), camera, tile_images, func_choose_tile),
+    #         EndlessLineOfTilesRenderer((61, 5), (1, 0), camera, tile_images, func_choose_tile),
+    #         EndlessGridOfTilesRenderer((55, 3), -1, -1, camera, tile_images, func_choose_tile_grid),
+    #         EndlessGridOfTilesRenderer((55, 7), -1, 1, camera, tile_images, func_choose_tile_grid),
+    #         EndlessGridOfTilesRenderer((61, 3), 1, -1, camera, tile_images, func_choose_tile_grid),
+    #         EndlessGridOfTilesRenderer((61, 7), 1, 1, camera, tile_images, func_choose_tile_grid),
+    #     ])
 
     tiles = tiles_from_str(level_data.tiles_str)
 
@@ -765,7 +822,361 @@ def create_level(level_number):
 
     water_level = level_data.tiles_str.count('\n') * TILE_SIZE
 
-    return Level(tiles, doors, snakes, moving_platforms, water_level)
+    return Level(
+        background_tiles, endless_background_renderers, tiles, doors, snakes,
+        moving_platforms, water_level
+    )
+
+
+def create_endless_background_renderers(background_tiles_str, camera):
+    renderers_list = []
+    for y, line in enumerate(background_tiles_str.splitlines()):
+        for x, char in enumerate(line):
+            # sides_list = []
+            # if x == 0:
+            #     sides_list.append('left')
+            # if x == len(line) - 1:
+            #     sides_list.append('right')
+            # if y == 0:
+            #     sides_list.append('top')
+            # if (x, y) == (0, 0):
+            #     side_list.append('topleft')
+            # if (x, y) == (len(line) - 1, 0):
+            #     side_list.append('topright')
+
+            # for side in sides_list:
+            #     r = create_endless_background_renderer_for_tile(
+            #         (x, y), char, side, camera
+            #     )
+            #     if r is not None:
+            #         renderers.append(r)
+
+            if x == 0:
+                adjacent_tile = choose_adjacent_tiles(char)['left']
+                if adjacent_tile != '-':
+                    tile_images_dict = create_tile_images_dict(adjacent_tile)
+                    renderers_list.append(EndlessLineOfTilesRenderer(
+                        (-1, y), (-1, 0), camera, tile_images_dict
+                    ))
+            if x == len(line) - 1:
+                adjacent_tile = choose_adjacent_tiles(char)['right']
+                if adjacent_tile != '-':
+                    tile_images_dict = create_tile_images_dict(adjacent_tile)
+                    renderers_list.append(EndlessLineOfTilesRenderer(
+                        (len(line), y), (1, 0), camera, tile_images_dict
+                    ))
+            if y == 0:
+                adjacent_tile = choose_adjacent_tiles(char)['top']
+                if adjacent_tile != '-':
+                    tile_images_dict = create_tile_images_dict(adjacent_tile)
+                    renderers_list.append(EndlessLineOfTilesRenderer(
+                        (x, -1), (0, -1), camera, tile_images_dict
+                    ))
+            if (x, y) == (0, 0):
+                adjacent_tile_top = choose_adjacent_tiles(char)['top']
+                adjacent_tile_left = choose_adjacent_tiles(char)['left']
+                if (
+                    choose_adjacent_tiles(adjacent_tile_top)['left']
+                    == choose_adjacent_tiles(adjacent_tile_left)['top']
+                    == 'q'
+                ):
+                    tile_images_dict = create_tile_images_dict('q')
+                    renderers_list.append(EndlessGridOfTilesRenderer(
+                        (-1, -1), -1, -1, camera, tile_images_dict
+                    ))
+            if (x, y) == (len(line) - 1, 0):
+                adjacent_tile_top = choose_adjacent_tiles(char)['top']
+                adjacent_tile_right = choose_adjacent_tiles(char)['right']
+                if (
+                    choose_adjacent_tiles(adjacent_tile_top)['right']
+                    == choose_adjacent_tiles(adjacent_tile_right)['top']
+                    == 'q'
+                ):
+                    tile_images_dict = create_tile_images_dict('q')
+                    renderers_list.append(EndlessGridOfTilesRenderer(
+                        (len(line), -1), 1, -1, camera, tile_images_dict
+                    ))
+
+#         leftmost = line[0]
+#         if leftmost != '-':
+#             left_line_renderer = create_renderer_endless_line_of_bg_tiles(
+#                 (0, y), leftmost, 'left', camera
+#             )
+#             renderers_list.append(left_line_renderer)
+
+#         rightmost = line[-1]
+#         if rightmost != '-':
+#             right_line_renderer = create_renderer_endless_line_of_bg_tiles(
+#                 (len(line) - 1, y), rightmost, 'right', camera
+#             )
+#             renderers_list.append(right_line_renderer)
+
+#         if y == 0:
+#             for x, char in enumerate(line):
+#                 if char != '-':
+#                     top_line_renderer = create_renderer_endless_line_of_bg_tiles(
+#                         (x, y), char, 'top', camera
+#                     )
+#                     renderers_list.append(top_line_renderer)
+
+#             left_grid_renderer = EndlessGridOfTilesRenderer(
+#                 (-1, -1), -1, -1, camera, tile_images_dict)
+
+    return renderers_list
+
+
+def create_tile_images_dict(tile_char):
+    tile_type = tile_char + '_background'
+    return {0: create_tile_image(tile_type)}
+
+
+# def create_endless_background_renderer_for_tile(
+#     tile_coordinates, tile_char, side, camera
+# ):
+#     renderer = None
+
+#     if side in ('left', 'top', 'right'):
+#         increment = 0, 0
+#         if side == 'left':
+#             increment = -1, 0
+#         elif side == 'top':
+#             increment = 0, -1
+#         elif side == 'right':
+#             increment = 1, 0
+
+#         start = (
+#             tile_coordinates[0] + increment[0],
+#             tile_coordinates[1] + increment[1]
+#         )
+
+#         adjacent_tile = choose_adjacent_tiles(tile_char)[side]
+#         if adjacent_tile != '-':
+#             tile_images_dict = {
+#                 0: create_tile_image(adjacent_tile)
+#             }
+#             renderer = EndlessLineOfTilesRenderer(
+#                 start, increment, camera, tile_images_dict
+#             )
+#     elif side in ('topleft', 'topright'):
+#         if side == 'topleft':
+#             increment_x = -1
+#             increment_y = -1
+#         elif side == 'topright':
+#             increment_x = 1
+#             increment_y = -1
+
+#         start = (
+#             tile_coordinates[0] + increment_x,
+#             tile_coordinates[1] + increment_y
+#         )
+
+#         tile_images_dict = {
+#             0: create_tile_image('q')
+#         }
+
+#         if side == 'topleft':
+#             adjacent_tile_top = choose_adjacent_tiles(tile_char)['top']
+#             adjacent_tile_left = choose_adjacent_tiles(tile_char)['left']
+#             if (
+#                 choose_adjacent_tiles(adjacent_tile_top)['left']
+#                 == choose_adjacent_tiles(adjacent_tile_left)['top']
+#                 == 'q'
+#             ):
+#                 renderer = EndlessGridOfTilesRenderer(
+#                     start, increment_x, increment_y, camera, tile_images_dict
+#                 )
+#         elif side == 'topright':
+#             adjacent_tile_top = choose_adjacent_tiles(tile_char)['top']
+#             adjacent_tile_right = choose_adjacent_tiles(tile_char)['right']
+#             if (
+#                 choose_adjacent_tiles(adjacent_tile_top)['right']
+#                 == choose_adjacent_tiles(adjacent_tile_right)['top']
+#                 == 'q'
+#             ):
+#                 renderer = EndlessGridOfTilesRenderer(
+#                     start, increment_x, increment_y, camera, tile_images_dict
+#                 )
+
+#     return renderer
+
+
+# def create_renderer_endless_line_of_bg_tiles(
+#     tile_coordinates, tile_char, side, camera
+# ):
+#     increment = 0, 0
+#     if side == 'left':
+#         increment = -1, 0
+#     elif side == 'top':
+#         increment = 0, -1
+#     elif side == 'right':
+#         increment = 1, 0
+
+#     start = (
+#         tile_coordinates[0] + increment[0],
+#         tile_coordinates[1] + increment[1]
+#     )
+
+#     adjacent_tile = choose_adjacent_tiles(tile_char)[side]
+#     tile_images_dict = {
+#         0: create_tile_image(adjacent_tile)
+#     }
+
+#     return EndlessLineOfTilesRenderer(
+#         start, increment, camera, tile_images_dict
+#     )
+
+
+def tiles_from_str(tiles_str, background=False):
+    tiles = pygame.sprite.Group()
+    for y, line in enumerate(tiles_str.splitlines()):
+        for x, tile_char in enumerate(line):
+            if tile_char != '-':
+                bg_left = None
+                bg_right = None
+                if not background:
+                    neighbour_left = '-'
+                    if x - 1 >= 0:
+                        neighbour_left = line[x-1]
+                    neighbour_right = '-'
+                    if x + 1 < len(line):
+                        neighbour_right = line[x+1]
+                    bg_left_char, bg_right_char = choose_background_for_tile(
+                        neighbour_left, neighbour_right
+                    )
+                    bg_left = tile_char_to_tile_type(bg_left_char)
+                    bg_right = tile_char_to_tile_type(bg_right_char)
+                tile_type = tile_char_to_tile_type(tile_char, background)
+                tile_image = create_tile_image(tile_type, bg_left, bg_right)
+                tiles.add(Tile((x, y), tile_image))
+    return tiles
+
+
+def choose_background_for_tile(neighbour_left, neighbour_right):
+    bg_left = choose_adjacent_tiles(neighbour_left)['right']
+    bg_right = choose_adjacent_tiles(neighbour_right)['left']
+    return bg_left, bg_right
+
+
+def tile_char_to_tile_type(tile_char, background=False):
+    if tile_char == '-':
+        tile_type = None
+    elif background:
+        tile_type = tile_char + '_background'
+    else:
+        tile_type = tile_char.lower()
+        if tile_char.islower():
+            tile_type += '_dirt'
+        elif tile_char.isupper():
+            tile_type += '_stone'
+    return tile_type
+
+
+def choose_adjacent_tiles(tile_char):
+    neighbour_left_map = {
+        '0': '0',
+        '1': '0',
+        '2': '2',
+        'a': '-',
+        'b': '-',
+        'c': 'c',
+        'd': 'c',
+        'e': 'q',
+        'f': 'g',
+        'g': 'g',
+        'h': '-',
+        'i': '-',
+        'j': '-',
+        'k': '-',
+        'l': '-',
+        'm': 'c',
+        'n': 'n',
+        'o': 'n',
+        'p': 'n',
+        'q': 'q',
+        'r': 'q',
+        's': 'q',
+        't': 'q',
+        'u': 'g',
+        'v': 'c',
+        'w': 'q',
+        '-': '-',
+    }
+    left = translate_tile_char(tile_char, neighbour_left_map)
+
+    neighbour_top_map = {
+        '0': '0',
+        '1': '0',
+        '2': '-',
+        'a': 'a',
+        'b': '-',
+        'c': '-',
+        'd': '-',
+        'e': 'e',
+        'f': 'e',
+        'g': 'q',
+        'h': 'a',
+        'i': '-',
+        'j': 'j',
+        'k': 'j',
+        'l': '-',
+        'm': '-',
+        'n': '-',
+        'o': '-',
+        'p': '-',
+        'q': 'q',
+        'r': 'q',
+        's': 'q',
+        't': 'q',
+        'u': 'q',
+        'v': 'a',
+        'w': 'e',
+        '-': '-',
+    }
+    top = translate_tile_char(tile_char, neighbour_top_map)
+
+    neighbour_right_map = {
+        '0': '0',
+        '1': '0',
+        '2': '2',
+        'a': 'q',
+        'b': 'c',
+        'c': 'c',
+        'd': '-',
+        'e': '-',
+        'f': '-',
+        'g': 'g',
+        'h': 'g',
+        'i': '-',
+        'j': '-',
+        'k': '-',
+        'l': 'n',
+        'm': 'n',
+        'n': 'n',
+        'o': 'c',
+        'p': '-',
+        'q': 'q',
+        'r': 'q',
+        's': 'q',
+        't': 'g',
+        'u': 'q',
+        'v': 'q',
+        'w': 'c',
+        '-': '-',
+    }
+    right = translate_tile_char(tile_char, neighbour_right_map)
+
+    return {
+        'left': left,
+        'top': top,
+        'right': right,
+    }
+
+
+def translate_tile_char(tile_char, translation_map):
+    new_tile_char = translation_map[tile_char.lower()]
+    if tile_char.isupper():
+        new_tile_char = new_tile_char.upper()
+    return new_tile_char
 
 
 @dataclasses.dataclass
@@ -777,7 +1188,7 @@ class World:
 
 
 def create_world(level_number, prev_level_number, level_completions, camera):
-    level = create_level(level_number)
+    level = create_level(level_number, camera)
     starting_door = choose_door_to_start_at(level, prev_level_number)
     player = Player(starting_door.rect.midbottom, level)
     door_text_viewer = DoorTextViewer(player, level_completions)
@@ -799,7 +1210,8 @@ def water(water_level, camera):
     tile_count = math.ceil(WIDTH / TILE_SIZE) + 1
     for tile_x in range(tile_count):
         tile_coordinates = tile_x, tile_water_level
-        tile = WaterTileTop('2', tile_coordinates, tile_count, camera)
+        tile_image = create_tile_image('2')
+        tile = WaterTileTop(tile_coordinates, tile_image, tile_count, camera)
         water_tiles.add(tile)
 
     tile_count_horizontal = tile_count
@@ -812,9 +1224,10 @@ def water(water_level, camera):
             if tile_y % 2 == tile_x % 2:
                 tile_type = '1'
             tile_coordinates = tile_x, tile_water_level + 1 + tile_y
+            tile_image = create_tile_image(tile_type)
             tile_counts = tile_count_horizontal, tile_count_vertical
             tile = WaterTileMiddle(
-                tile_type, tile_coordinates, *tile_counts, camera
+                tile_coordinates, tile_image, *tile_counts, camera
             )
             water_tiles.add(tile)
 
@@ -826,50 +1239,40 @@ def ceil_base(x, base=1):
 
 
 class Tile(pygame.sprite.Sprite):
-    def __init__(
-        self, tile_type, tile_coordinates, bg_left_tile_type=None,
-        bg_right_tile_type=None
-    ):
+    def __init__(self, tile_coordinates, tile_image):
         super().__init__()
 
-        self.image = self._create_image(
-            tile_type, bg_left_tile_type, bg_right_tile_type
-        )
+        self.image = tile_image
         self.rect = self.image.get_rect()
         self.rect.x = tile_coordinates[0] * TILE_SIZE
         self.rect.y = tile_coordinates[1] * TILE_SIZE
 
-    def _create_image(self, tile_type, bg_left_tile_type, bg_right_tile_type):
-        image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-        if bg_left_tile_type is not None:
-            area = 0, 0, TILE_SIZE // 2, TILE_SIZE
-            bg_left_image = self._load_tile_image(bg_left_tile_type)
-            image.blit(bg_left_image, (0, 0), area)
-        if bg_right_tile_type is not None:
-            area = TILE_SIZE // 2, 0, TILE_SIZE // 2, TILE_SIZE
-            bg_right_image = self._load_tile_image(bg_right_tile_type)
-            image.blit(bg_right_image, (TILE_SIZE // 2, 0), area)
-        foreground_image = self._load_tile_image(tile_type)
-        image.blit(foreground_image, (0, 0))
-        return image
 
-    def _load_tile_image(self, tile_type):
-        image_filename = self._tile_type_to_filename(tile_type)
-        return load_image(image_filename)
+def create_tile_image(
+    tile_type, bg_left_tile_type=None, bg_right_tile_type=None
+):
+    image = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+    if bg_left_tile_type is not None:
+        area = 0, 0, TILE_SIZE // 2, TILE_SIZE
+        bg_left_image = load_tile_image(bg_left_tile_type)
+        image.blit(bg_left_image, (0, 0), area)
+    if bg_right_tile_type is not None:
+        area = TILE_SIZE // 2, 0, TILE_SIZE // 2, TILE_SIZE
+        bg_right_image = load_tile_image(bg_right_tile_type)
+        image.blit(bg_right_image, (TILE_SIZE // 2, 0), area)
+    foreground_image = load_tile_image(tile_type)
+    image.blit(foreground_image, (0, 0))
+    return image
 
-    def _tile_type_to_filename(self, tile_type):
-        filename = 'tiles/' + tile_type.lower()
-        if tile_type in string.ascii_lowercase:
-            filename += '_dirt'
-        elif tile_type in string.ascii_uppercase:
-            filename += '_stone'
-        filename += '.png'
-        return filename
+
+def load_tile_image(tile_type):
+    image_filename = 'tiles/' + tile_type + '.png'
+    return load_image(image_filename)
 
 
 class WaterTileTop(Tile):
-    def __init__(self, tile_type, tile_coordinates, tile_count, camera):
-        super().__init__(tile_type, tile_coordinates)
+    def __init__(self, tile_coordinates, tile_image, tile_count, camera):
+        super().__init__(tile_coordinates, tile_image)
 
         self._camera = camera
         self._right_start = self.rect.right
@@ -883,11 +1286,11 @@ class WaterTileTop(Tile):
 
 class WaterTileMiddle(WaterTileTop):
     def __init__(
-        self, tile_type, tile_coordinates, tile_count_horizontal,
+        self, tile_coordinates, tile_image, tile_count_horizontal,
         tile_count_vertical, camera
     ):
         super().__init__(
-            tile_type, tile_coordinates, tile_count_horizontal, camera
+            tile_coordinates, tile_image, tile_count_horizontal, camera
         )
 
         self._camera = camera
@@ -905,8 +1308,587 @@ class WaterTileMiddle(WaterTileTop):
         self.rect.bottom = bottom
 
 
+# class EndlessLineOfTilesRenderer:
+#     def __init__(
+#         self, start, increment, tile_images, func_choose_tile, camera
+#     ):
+#         self._start_coordinates = start
+#         self._increment = increment
+#         self._tile_images = tile_images
+#         self._choose_tile = func_choose_tile
+#         self._camera = camera
+
+#     def draw(self, surface):
+#         # horizontal = self._increment[0] != 0
+
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+
+#         # step = tile_count
+
+#         # for origin in range(tile_count):
+#         #     if self._increment[0] == -1:
+#         #         rightmost_visible_tile = self._camera.rect_view().right // TILE_SIZE
+#         #         max_tile_x = min(rightmost_visible_tile, self._start_coordinates[0])
+#         #         x = greatest_multiple(origin, step, max_tile_x)
+#         #         index = x - origin
+#         #     elif self._increment[0] == 1:
+#         #         leftmost_visible_tile = self._camera.rect_view().left // TILE_SIZE
+#         #         min_tile_x = max(leftmost_visible_tile, self._start_coordinates[0])
+#         #         x = least_multiple(origin, step, min_tile_x)
+#         #         index = x - origin
+#         #     elif self._increment[1] == -1:
+#         #         lowest_visible_tile = self._camera.rect_view().bottom // TILE_SIZE
+#         #         max_tile_y = min(lowest_visible_tile, self._start_coordinates[1])
+#         #         y = greatest_multiple(origin, step, max_tile_y)
+#         #         index = y - origin
+#         #     elif self._increment[1] == 1:
+#         #         highest_visible_tile = self._camera.rect_view().top // TILE_SIZE
+#         #         min_tile_y = max(highest_visible_tile, self._start_coordinates[1])
+#         #         y = least_multiple(origin, step, min_tile_y)
+#         #         index = y - origin
+
+#         # camera_view = self._camera.rect_view()
+
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         #     increment = self._increment[0]
+#         #     if increment == -1:
+#         #         first_visible_tile = camera_view.right // TILE_SIZE
+#         #     elif increment == 1:
+#         #         first_visible_tile = camera_view.left // TILE_SIZE
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+#         #     increment = self._increment[1]
+#         #     if increment == -1:
+#         #         first_visible_tile = camera_view.bottom // TILE_SIZE
+#         #     elif increment == 1:
+#         #         first_visible_tile = camera_view.top // TILE_SIZE
+
+#         # if horizontal:
+#         #     first_tile_in_line = self._start_coordinates[0]
+#         # else:
+#         #     first_tile_in_line = self._start_coordinates[1]
+
+#         # step = tile_count
+
+#         # for origin in range(tile_count):
+#         #     if increment == -1:
+#         #         max_tile_coordinate = min(first_visible_tile, first_tile_in_line)
+#         #         tile_coordinate = greatest_multiple(origin, step, max_tile_coordinate)
+#         #     elif increment == 1:
+#         #         min_tile_coordinate = max(first_visible_tile, first_tile_in_line)
+#         #         tile_coordinate = least_multiple(origin, step, min_tile_coordinate)
+
+#         #     if horizontal:
+#         #         coordinates = self._start_coordinates[0], tile_coordinate
+#         #     else:
+#         #         coordinates = tile_coordinate, self._start_coordinates[1]
+
+#         #     if horizontal:
+#         #         if increment == -1:
+#         #             index = origin - tile_coordinate
+#         #         elif increment == 1:
+#         #             index = tile_coordinate - origin
+#         #     else:
+#         #     image = self._tile_images[self._choose_tile(index)]
+#         #     tile = Tile(coordinates, image)
+#         #     surface.blit(tile.image, tile.rect)
+
+#         # camera_view = self._camera.rect_view()
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+#         # step = tile_count
+
+#         # for origin in range(tile_count):
+#         #     if self._increment[0] == -1:
+#         #         rightmost_visible_tile = camera_view.right // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[0]
+#         #         max_tile_x = min(rightmost_visible_tile, first_tile_in_line)
+#         #         x = greatest_multiple(origin, step, max_tile_x)
+#         #         tile_coordinates = x, self._start_coordinates[1]
+#         #         index = self._start_coordinates[0] - x
+#         #     elif self._increment[0] == 1:
+#         #         leftmost_visible_tile = camera_view.left // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[0]
+#         #         min_tile_x = max(leftmost_visible_tile, first_tile_in_line)
+#         #         x = least_multiple(origin, step, min_tile_x)
+#         #         tile_coordinates = x, self._start_coordinates[1]
+#         #         index = x - self._start_coordinates[0]
+#         #     elif self._increment[1] == -1:
+#         #         lowest_visible_tile = camera_view.bottom // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[1]
+#         #         max_tile_y = min(lowest_visible_tile, first_tile_in_line)
+#         #         y = greatest_multiple(origin, step, max_tile_y)
+#         #         tile_coordinates = self._start_coordinates[0], y
+#         #         index = self._start_coordinates[1] - y
+#         #     elif self._increment[1] == 1:
+#         #         highest_visible_tile = camera_view.top // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[1]
+#         #         min_tile_y = max(highest_visible_tile, first_tile_in_line)
+#         #         y = least_multiple(origin, step, min_tile_y)
+#         #         tile_coordinates = self._start_coordinates[0], y
+#         #         index = y - self._start_coordinates[1]
+
+#         #     image = self._tile_images[self._choose_tile(index)]
+#         #     tile = Tile(tile_coordinates, image)
+#         #     surface.blit(tile.image, tile.rect)
+
+#         if self._increment == (-1, 0):
+#             min_tile_x = self._camera.rect_view().left // TILE_SIZE
+#             if self._start_coordinates[0] >= min_tile_x:
+#                 max_tile_x = self._camera.rect_view().right // TILE_SIZE
+#                 max_tile_x = min(max_tile_x, self._start_coordinates[0])
+#                 for x in range(min_tile_x, max_tile_x + 1):
+#                     coordinates = x, self._start_coordinates[1]
+#                     relative_i = self._start_coordinates[0] - x
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+#         elif self._increment == (1, 0):
+#             max_tile_x = self._camera.rect_view().right // TILE_SIZE
+#             if self._start_coordinates[0] <= max_tile_x:
+#                 min_tile_x = self._camera.rect_view().left // TILE_SIZE
+#                 min_tile_x = max(min_tile_x, self._start_coordinates[0])
+#                 for x in range(min_tile_x, max_tile_x + 1):
+#                     coordinates = x, self._start_coordinates[1]
+#                     relative_i = x - self._start_coordinates[0]
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+#         elif self._increment == (0, -1):
+#             min_tile_y = self._camera.rect_view().top // TILE_SIZE
+#             if self._start_coordinates[1] >= min_tile_y:
+#                 max_tile_y = self._camera.rect_view().bottom // TILE_SIZE
+#                 max_tile_y = min(max_tile_y, self._start_coordinates[1])
+#                 for y in range(min_tile_y, max_tile_y + 1):
+#                     coordinates = self._start_coordinates[0], y
+#                     relative_i = self._start_coordinates[1] - y
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+#         elif self._increment == (0, 1):
+#             max_tile_y = self._camera.rect_view().bottom // TILE_SIZE
+#             if self._start_coordinates[1] <= max_tile_y:
+#                 min_tile_y = self._camera.rect_view().top // TILE_SIZE
+#                 min_tile_y = max(min_tile_y, self._start_coordinates[1])
+#                 for y in range(min_tile_y, max_tile_y + 1):
+#                     coordinates = self._start_coordinates[0], y
+#                     relative_i = y - self._start_coordinates[1]
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+
+#         # if self._increment[0] == -1:
+#         #     min_tile_x = camera_view.left // TILE_SIZE
+#         #     if self._start_coordinates[0] >= min_tile_x:
+#         #         max_tile_x = camera_view.right // TILE_SIZE
+#         #         max_tile_x = min(max_tile_x, self._start_coordinates[0])
+#         #         first_tile_coordinates = max_tile_x, self._start_coordinates[1]
+#         #         length = max_tile_x - min_tile_x + 1
+#         #         self._draw_line_of_tiles(surface, first_tile_coordinates, length)
+#         # elif self._increment[0] == 1:
+#         #     max_tile_x = camera_view.left // TILE_SIZE
+#         #     if self._start_coordinates[0] >= max_tile_x:
+#         #         min_tile_x = camera_view.right // TILE_SIZE
+#         #         min_tile_x = max(min_tile_x, self._start_coordinates[0])
+#         #         first_tile_coordinates = min_tile_x, self._start_coordinates[1]
+#         #         length = max_tile_x - min_tile_x + 1
+#         #         self._draw_line_of_tiles(surface, first_tile_coordinates, length)
+#         # elif self._increment[1] == -1:
+#         #     pass
+#         # elif self._increment[1] == 1:
+#         #     pass
+
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         #     step = tile_count
+#         #     for origin in range(tile_count):
+#         #         if self._increment[0] == -1:
+#         #             rightmost_visible_tile = self._camera.rect_view().right // TILE_SIZE
+#         #             max_tile_x = min(rightmost_visible_tile, self._start_coordinates[0])
+#         #             x = greatest_multiple(origin, step, max_tile_x)
+#         #             index = x - origin
+#         #         elif self._increment[0] == 1:
+#         #             min_value_pixels = self._camera.rect_view().
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+#         #     start = self._start_coordinates[1]
+#         #     step = self._start_coordinates[1]
+
+#         # image = self._tile_images[self._choose_tile(index)]
+#         # tile = Tile((x, self._increment[1]), image)
+#         # surface.blit(tile.image, tile.rect)
+
+#     # def _draw_line_of_tiles(self, surface, first_tile_coordinates, length):
+#     #     tile_coordinates = first_tile_coordinates
+
+#     #     for relative_index in range(length):
+#     #         image = self._tile_images[self._choose_tile(relative_index)]
+#     #         tile = Tile(tile_coordinates, image)
+#     #         surface.blit(tile.image, tile.rect)
+#     #         tile_coordinates = (
+#     #             tile_coordinates[0] + self._increment[0],
+#     #             tile_coordinates[1] + self._increment[1]
+#     #         )
+
+#     # def _draw_tile(self, first_tile_coordinates, relative_index):
+#     #     tile_coordinates = first_tile_coordinates
+#     #     for i in range(relative_index - 1):
+#     #         tile_coordinates = (
+#     #             tile_coordinates[0] + self._increment[0],
+#     #             tile_coordinates[1] + self._increment[1]
+#     #         )
+#     #     image = self._choose_tile(relative_index)
+#     #     tile = Tile(tile_coordinates, image)
+#     #     surface.blit(tile.image, tile.rect)
+
+
 def least_multiple(origin, step, min_value):
+    step = abs(step)
     return origin + math.ceil((min_value - origin) / step) * step
+
+
+# # def greatest_multiple(origin, step, max_value):
+# #     step = -abs(step)
+# #     return origin + math.ceil((max_value - origin) / step) * step
+
+
+# class EndlessLineOfTilesRenderer:
+#     def __init__(
+#         self, start, increment, tile_images, func_choose_tile, camera
+#     ):
+#         self._start_coordinates = start
+#         self._increment = increment
+#         self._tile_images = tile_images
+#         self._choose_tile = func_choose_tile
+#         self._camera = camera
+
+#     def draw(self, surface):
+#         # horizontal = self._increment[0] != 0
+
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+
+#         # step = tile_count
+
+#         # for origin in range(tile_count):
+#         #     if self._increment[0] == -1:
+#         #         rightmost_visible_tile = self._camera.rect_view().right // TILE_SIZE
+#         #         max_tile_x = min(rightmost_visible_tile, self._start_coordinates[0])
+#         #         x = greatest_multiple(origin, step, max_tile_x)
+#         #         index = x - origin
+#         #     elif self._increment[0] == 1:
+#         #         leftmost_visible_tile = self._camera.rect_view().left // TILE_SIZE
+#         #         min_tile_x = max(leftmost_visible_tile, self._start_coordinates[0])
+#         #         x = least_multiple(origin, step, min_tile_x)
+#         #         index = x - origin
+#         #     elif self._increment[1] == -1:
+#         #         lowest_visible_tile = self._camera.rect_view().bottom // TILE_SIZE
+#         #         max_tile_y = min(lowest_visible_tile, self._start_coordinates[1])
+#         #         y = greatest_multiple(origin, step, max_tile_y)
+#         #         index = y - origin
+#         #     elif self._increment[1] == 1:
+#         #         highest_visible_tile = self._camera.rect_view().top // TILE_SIZE
+#         #         min_tile_y = max(highest_visible_tile, self._start_coordinates[1])
+#         #         y = least_multiple(origin, step, min_tile_y)
+#         #         index = y - origin
+
+#         # camera_view = self._camera.rect_view()
+
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         #     increment = self._increment[0]
+#         #     if increment == -1:
+#         #         first_visible_tile = camera_view.right // TILE_SIZE
+#         #     elif increment == 1:
+#         #         first_visible_tile = camera_view.left // TILE_SIZE
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+#         #     increment = self._increment[1]
+#         #     if increment == -1:
+#         #         first_visible_tile = camera_view.bottom // TILE_SIZE
+#         #     elif increment == 1:
+#         #         first_visible_tile = camera_view.top // TILE_SIZE
+
+#         # if horizontal:
+#         #     first_tile_in_line = self._start_coordinates[0]
+#         # else:
+#         #     first_tile_in_line = self._start_coordinates[1]
+
+#         # step = tile_count
+
+#         # for origin in range(tile_count):
+#         #     if increment == -1:
+#         #         max_tile_coordinate = min(first_visible_tile, first_tile_in_line)
+#         #         tile_coordinate = greatest_multiple(origin, step, max_tile_coordinate)
+#         #     elif increment == 1:
+#         #         min_tile_coordinate = max(first_visible_tile, first_tile_in_line)
+#         #         tile_coordinate = least_multiple(origin, step, min_tile_coordinate)
+
+#         #     if horizontal:
+#         #         coordinates = self._start_coordinates[0], tile_coordinate
+#         #     else:
+#         #         coordinates = tile_coordinate, self._start_coordinates[1]
+
+#         #     if horizontal:
+#         #         if increment == -1:
+#         #             index = origin - tile_coordinate
+#         #         elif increment == 1:
+#         #             index = tile_coordinate - origin
+#         #     else:
+#         #     image = self._tile_images[self._choose_tile(index)]
+#         #     tile = Tile(coordinates, image)
+#         #     surface.blit(tile.image, tile.rect)
+
+#         # camera_view = self._camera.rect_view()
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+#         # step = tile_count
+
+#         # for origin in range(tile_count):
+#         #     if self._increment[0] == -1:
+#         #         rightmost_visible_tile = camera_view.right // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[0]
+#         #         max_tile_x = min(rightmost_visible_tile, first_tile_in_line)
+#         #         x = greatest_multiple(origin, step, max_tile_x)
+#         #         tile_coordinates = x, self._start_coordinates[1]
+#         #         index = self._start_coordinates[0] - x
+#         #     elif self._increment[0] == 1:
+#         #         leftmost_visible_tile = camera_view.left // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[0]
+#         #         min_tile_x = max(leftmost_visible_tile, first_tile_in_line)
+#         #         x = least_multiple(origin, step, min_tile_x)
+#         #         tile_coordinates = x, self._start_coordinates[1]
+#         #         index = x - self._start_coordinates[0]
+#         #     elif self._increment[1] == -1:
+#         #         lowest_visible_tile = camera_view.bottom // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[1]
+#         #         max_tile_y = min(lowest_visible_tile, first_tile_in_line)
+#         #         y = greatest_multiple(origin, step, max_tile_y)
+#         #         tile_coordinates = self._start_coordinates[0], y
+#         #         index = self._start_coordinates[1] - y
+#         #     elif self._increment[1] == 1:
+#         #         highest_visible_tile = camera_view.top // TILE_SIZE
+#         #         first_tile_in_line = self._start_coordinates[1]
+#         #         min_tile_y = max(highest_visible_tile, first_tile_in_line)
+#         #         y = least_multiple(origin, step, min_tile_y)
+#         #         tile_coordinates = self._start_coordinates[0], y
+#         #         index = y - self._start_coordinates[1]
+
+#         #     image = self._tile_images[self._choose_tile(index)]
+#         #     tile = Tile(tile_coordinates, image)
+#         #     surface.blit(tile.image, tile.rect)
+
+#         if self._increment == (-1, 0):
+#             min_tile_x = self._camera.rect_view().left // TILE_SIZE
+#             if self._start_coordinates[0] >= min_tile_x:
+#                 max_tile_x = self._camera.rect_view().right // TILE_SIZE
+#                 max_tile_x = min(max_tile_x, self._start_coordinates[0])
+#                 for x in range(min_tile_x, max_tile_x + 1):
+#                     coordinates = x, self._start_coordinates[1]
+#                     relative_i = self._start_coordinates[0] - x
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+#         elif self._increment == (1, 0):
+#             max_tile_x = self._camera.rect_view().right // TILE_SIZE
+#             if self._start_coordinates[0] <= max_tile_x:
+#                 min_tile_x = self._camera.rect_view().left // TILE_SIZE
+#                 min_tile_x = max(min_tile_x, self._start_coordinates[0])
+#                 for x in range(min_tile_x, max_tile_x + 1):
+#                     coordinates = x, self._start_coordinates[1]
+#                     relative_i = x - self._start_coordinates[0]
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+#         elif self._increment == (0, -1):
+#             min_tile_y = self._camera.rect_view().top // TILE_SIZE
+#             if self._start_coordinates[1] >= min_tile_y:
+#                 max_tile_y = self._camera.rect_view().bottom // TILE_SIZE
+#                 max_tile_y = min(max_tile_y, self._start_coordinates[1])
+#                 for y in range(min_tile_y, max_tile_y + 1):
+#                     coordinates = self._start_coordinates[0], y
+#                     relative_i = self._start_coordinates[1] - y
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+#         elif self._increment == (0, 1):
+#             max_tile_y = self._camera.rect_view().bottom // TILE_SIZE
+#             if self._start_coordinates[1] <= max_tile_y:
+#                 min_tile_y = self._camera.rect_view().top // TILE_SIZE
+#                 min_tile_y = max(min_tile_y, self._start_coordinates[1])
+#                 for y in range(min_tile_y, max_tile_y + 1):
+#                     coordinates = self._start_coordinates[0], y
+#                     relative_i = y - self._start_coordinates[1]
+#                     image = self._tile_images[self._choose_tile(relative_i)]
+#                     tile = Tile(coordinates, image)
+#                     surface.blit(tile.image, tile.rect)
+
+#         # if self._increment[0] == -1:
+#         #     min_tile_x = camera_view.left // TILE_SIZE
+#         #     if self._start_coordinates[0] >= min_tile_x:
+#         #         max_tile_x = camera_view.right // TILE_SIZE
+#         #         max_tile_x = min(max_tile_x, self._start_coordinates[0])
+#         #         first_tile_coordinates = max_tile_x, self._start_coordinates[1]
+#         #         length = max_tile_x - min_tile_x + 1
+#         #         self._draw_line_of_tiles(surface, first_tile_coordinates, length)
+#         # elif self._increment[0] == 1:
+#         #     max_tile_x = camera_view.left // TILE_SIZE
+#         #     if self._start_coordinates[0] >= max_tile_x:
+#         #         min_tile_x = camera_view.right // TILE_SIZE
+#         #         min_tile_x = max(min_tile_x, self._start_coordinates[0])
+#         #         first_tile_coordinates = min_tile_x, self._start_coordinates[1]
+#         #         length = max_tile_x - min_tile_x + 1
+#         #         self._draw_line_of_tiles(surface, first_tile_coordinates, length)
+#         # elif self._increment[1] == -1:
+#         #     pass
+#         # elif self._increment[1] == 1:
+#         #     pass
+
+#         # if horizontal:
+#         #     tile_count = math.ceil(WIDTH / TILE_SIZE)
+#         #     step = tile_count
+#         #     for origin in range(tile_count):
+#         #         if self._increment[0] == -1:
+#         #             rightmost_visible_tile = self._camera.rect_view().right // TILE_SIZE
+#         #             max_tile_x = min(rightmost_visible_tile, self._start_coordinates[0])
+#         #             x = greatest_multiple(origin, step, max_tile_x)
+#         #             index = x - origin
+#         #         elif self._increment[0] == 1:
+#         #             min_value_pixels = self._camera.rect_view().
+#         # else:
+#         #     tile_count = math.ceil(HEIGHT / TILE_SIZE)
+#         #     start = self._start_coordinates[1]
+#         #     step = self._start_coordinates[1]
+
+#         # image = self._tile_images[self._choose_tile(index)]
+#         # tile = Tile((x, self._increment[1]), image)
+#         # surface.blit(tile.image, tile.rect)
+
+#     # def _draw_line_of_tiles(self, surface, first_tile_coordinates, length):
+#     #     tile_coordinates = first_tile_coordinates
+
+#     #     for relative_index in range(length):
+#     #         image = self._tile_images[self._choose_tile(relative_index)]
+#     #         tile = Tile(tile_coordinates, image)
+#     #         surface.blit(tile.image, tile.rect)
+#     #         tile_coordinates = (
+#     #             tile_coordinates[0] + self._increment[0],
+#     #             tile_coordinates[1] + self._increment[1]
+#     #         )
+
+#     # def _draw_tile(self, first_tile_coordinates, relative_index):
+#     #     tile_coordinates = first_tile_coordinates
+#     #     for i in range(relative_index - 1):
+#     #         tile_coordinates = (
+#     #             tile_coordinates[0] + self._increment[0],
+#     #             tile_coordinates[1] + self._increment[1]
+#     #         )
+#     #     image = self._choose_tile(relative_index)
+#     #     tile = Tile(tile_coordinates, image)
+#     #     surface.blit(tile.image, tile.rect)
+
+
+class EndlessGridOfTilesRenderer:
+    def __init__(
+        self, start, increment_x, increment_y, camera, tile_images_dict,
+        func_choose_tile=None
+    ):
+        self._start_coordinates = start
+        self._increment_x = increment_x
+        self._increment_y = increment_y
+        self._camera = camera
+        self._tile_images = tile_images_dict
+
+        if func_choose_tile is not None:
+            self._choose_tile = func_choose_tile
+        else:
+            self._choose_tile = lambda x, y: next(iter(self._tile_images))
+
+    def draw(self, surface):
+        row_of_columns_coordinates = compute_line_of_tiles_coordinates(
+            self._start_coordinates, (self._increment_x, 0), self._camera
+        )
+        for relative_x, coordinates in row_of_columns_coordinates:
+            choose_tile = functools.partial(self._choose_tile, relative_x)
+            EndlessLineOfTilesRenderer(
+                coordinates, (0, self._increment_y), self._camera,
+                self._tile_images, choose_tile
+            ).draw(surface)
+
+
+class EndlessLineOfTilesRenderer:
+    def __init__(
+        self, start, increment, camera, tile_images_dict, func_choose_tile=None
+    ):
+        self._start_coordinates = start
+        self._increment = increment
+        self._camera = camera
+        self._tile_images = tile_images_dict
+
+        if func_choose_tile is not None:
+            self._choose_tile = func_choose_tile
+        else:
+            self._choose_tile = lambda i: next(iter(self._tile_images))
+
+    def draw(self, surface):
+        tiles_coordinates = compute_line_of_tiles_coordinates(
+            self._start_coordinates, self._increment, self._camera
+        )
+        for relative_i, coordinates in tiles_coordinates:
+            image = self._tile_images[self._choose_tile(relative_i)]
+            tile = Tile(coordinates, image)
+            surface.blit(tile.image, tile.rect)
+
+
+def compute_line_of_tiles_coordinates(start_coordinates, increment, camera):
+    tiles_coordinates = []
+    if increment == (-1, 0):
+        min_tile_x = camera.rect_view().left // TILE_SIZE
+        if start_coordinates[0] >= min_tile_x:
+            max_tile_x = camera.rect_view().right // TILE_SIZE
+            max_tile_x = min(max_tile_x, start_coordinates[0])
+            for x in range(min_tile_x, max_tile_x + 1):
+                coordinates = x, start_coordinates[1]
+                relative_i = start_coordinates[0] - x
+                tiles_coordinates.append((relative_i, coordinates))
+    elif increment == (1, 0):
+        max_tile_x = camera.rect_view().right // TILE_SIZE
+        if start_coordinates[0] <= max_tile_x:
+            min_tile_x = camera.rect_view().left // TILE_SIZE
+            min_tile_x = max(min_tile_x, start_coordinates[0])
+            for x in range(min_tile_x, max_tile_x + 1):
+                coordinates = x, start_coordinates[1]
+                relative_i = x - start_coordinates[0]
+                tiles_coordinates.append((relative_i, coordinates))
+    elif increment == (0, -1):
+        min_tile_y = camera.rect_view().top // TILE_SIZE
+        if start_coordinates[1] >= min_tile_y:
+            max_tile_y = camera.rect_view().bottom // TILE_SIZE
+            max_tile_y = min(max_tile_y, start_coordinates[1])
+            for y in range(min_tile_y, max_tile_y + 1):
+                coordinates = start_coordinates[0], y
+                relative_i = start_coordinates[1] - y
+                tiles_coordinates.append((relative_i, coordinates))
+    elif increment == (0, 1):
+        max_tile_y = camera.rect_view().bottom // TILE_SIZE
+        if start_coordinates[1] <= max_tile_y:
+            min_tile_y = camera.rect_view().top // TILE_SIZE
+            min_tile_y = max(min_tile_y, start_coordinates[1])
+            for y in range(min_tile_y, max_tile_y + 1):
+                coordinates = start_coordinates[0], y
+                relative_i = y - start_coordinates[1]
+                tiles_coordinates.append((relative_i, coordinates))
+    return tiles_coordinates
 
 
 class Door(pygame.sprite.Sprite):
@@ -965,85 +1947,6 @@ class MovingPlatform(pygame.sprite.Sprite):
             self._next_destination_index += 1
             if self._next_destination_index >= len(self._destinations):
                 self._next_destination_index = 0
-
-
-def tiles_from_str(tiles_str):
-    tiles = pygame.sprite.Group()
-    for y, line in enumerate(tiles_str.splitlines()):
-        for x, tile_type in enumerate(line):
-            if tile_type != '-':
-                neighbour_left = '-'
-                if x - 1 >= 0:
-                    neighbour_left = line[x-1]
-                neighbour_right = '-'
-                if x + 1 < len(line):
-                    neighbour_right = line[x+1]
-                bg_left, bg_right = choose_background_for_tile(
-                    neighbour_left, neighbour_right
-                )
-                tiles.add(Tile(tile_type, (x, y), bg_left, bg_right))
-    return tiles
-
-
-def choose_background_for_tile(neighbour_left, neighbour_right):
-    bg_left_map = {
-        '0': '0',
-        '1': '0',
-        '2': '2',
-        'a': 'q',
-        'b': 'c',
-        'c': 'c',
-        'd': None,
-        'e': None,
-        'f': None,
-        'g': 'g',
-        'h': 'g',
-        'i': None,
-        'j': None,
-        'k': None,
-        'l': 'n',
-        'm': 'n',
-        'n': 'n',
-        'o': 'c',
-        'p': None,
-        'q': 'q',
-        'r': 'q',
-        '-': None,
-    }
-    bg_left = translate_tile_type(neighbour_left, bg_left_map)
-    bg_right_map = {
-        '0': '0',
-        '1': '0',
-        '2': '2',
-        'a': None,
-        'b': None,
-        'c': 'c',
-        'd': 'c',
-        'e': 'q',
-        'f': 'g',
-        'g': 'g',
-        'h': None,
-        'i': None,
-        'j': None,
-        'k': None,
-        'l': None,
-        'm': 'c',
-        'n': 'n',
-        'o': 'n',
-        'p': 'n',
-        'q': 'q',
-        'r': 'q',
-        '-': None,
-    }
-    bg_right = translate_tile_type(neighbour_right, bg_right_map)
-    return bg_left, bg_right
-
-
-def translate_tile_type(tile_type, translation_map):
-    new_tile_type = translation_map[tile_type.lower()]
-    if new_tile_type is not None and tile_type.isupper():
-        new_tile_type = new_tile_type.upper()
-    return new_tile_type
 
 
 @dataclasses.dataclass
