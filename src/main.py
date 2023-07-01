@@ -1,7 +1,6 @@
 import dataclasses
 import functools
 import itertools
-import math
 import os
 import sys
 import time
@@ -62,7 +61,6 @@ def main():
         world.player.slashes.update()
         if not world.player.is_dying():
             camera.follow(world.player)
-        world.water_tiles.update()
 
         print(f'update: {time.time() - t0:4f} ', end='')
 
@@ -70,7 +68,8 @@ def main():
 
         surface.fill((93, 152, 141))
 
-        world.water_tiles.draw(surface)
+        for renderer in world.water_renderers:
+            renderer.draw(surface)
         world.level.background_tiles.draw(surface)
         for renderer in world.level.endless_background_renderers:
             renderer.draw(surface)
@@ -998,7 +997,7 @@ class World:
     level: Level
     player: Player
     door_text_viewer: DoorTextViewer
-    water_tiles: pygame.sprite.Group
+    water_renderers: list
 
 
 def create_world(level_number, prev_level_number, level_completions, camera):
@@ -1006,8 +1005,8 @@ def create_world(level_number, prev_level_number, level_completions, camera):
     starting_door = choose_door_to_start_at(level, prev_level_number)
     player = Player(starting_door.rect.midbottom, level)
     door_text_viewer = DoorTextViewer(player, level_completions)
-    water_tiles = water(level.water_level, camera)
-    return World(level, player, door_text_viewer, water_tiles)
+    water_renderers = create_water_renderers(level.water_level, camera)
+    return World(level, player, door_text_viewer, water_renderers)
 
 
 def choose_door_to_start_at(level, prev_level_number):
@@ -1018,38 +1017,41 @@ def choose_door_to_start_at(level, prev_level_number):
     return doors[0]
 
 
-def water(water_level, camera):
-    tile_water_level = water_level / TILE_SIZE
-    water_tiles = pygame.sprite.Group()
-    tile_count = math.ceil(WIDTH / TILE_SIZE) + 1
-    for tile_x in range(tile_count):
-        tile_coordinates = tile_x, tile_water_level
-        tile_image = create_tile_image('2')
-        tile = WaterTileTop(tile_coordinates, tile_image, tile_count, camera)
-        water_tiles.add(tile)
+def create_water_renderers(water_level, camera):
+    tile_water_level = water_level // TILE_SIZE
+    tile_images_dict = {
+        '0': create_tile_image('0'),
+        '1': create_tile_image('1'),
+        '2': create_tile_image('2'),
+    }
 
-    tile_count_horizontal = tile_count
-    tile_count_horizontal = ceil_base(tile_count_horizontal, base=2)
-    tile_count_vertical = math.ceil(HEIGHT / TILE_SIZE) + 1
-    tile_count_vertical = ceil_base(tile_count_vertical, base=2)
-    for tile_x in range(tile_count_horizontal):
-        for tile_y in range(tile_count_vertical):
-            tile_type = '0'
-            if tile_y % 2 == tile_x % 2:
-                tile_type = '1'
-            tile_coordinates = tile_x, tile_water_level + 1 + tile_y
-            tile_image = create_tile_image(tile_type)
-            tile_counts = tile_count_horizontal, tile_count_vertical
-            tile = WaterTileMiddle(
-                tile_coordinates, tile_image, *tile_counts, camera
-            )
-            water_tiles.add(tile)
+    def choose_tile_left_renderer(x, y):
+        if y == 0:
+            return '2'
+        if x % 2 == y % 2:
+            return '1'
+        else:
+            return '0'
 
-    return water_tiles
+    water_renderer_left = EndlessGridOfTilesRenderer(
+        (-1, tile_water_level), -1, 1, camera, tile_images_dict,
+        choose_tile_left_renderer
+    )
 
+    def choose_tile_right_renderer(x, y):
+        if y == 0:
+            return '2'
+        if x % 2 == y % 2:
+            return '0'
+        else:
+            return '1'
 
-def ceil_base(x, base=1):
-    return math.ceil(x / base) * base
+    water_renderer_right = EndlessGridOfTilesRenderer(
+        (0, tile_water_level), 1, 1, camera, tile_images_dict,
+        choose_tile_right_renderer
+    )
+
+    return [water_renderer_left, water_renderer_right]
 
 
 class Tile(pygame.sprite.Sprite):
@@ -1082,49 +1084,6 @@ def create_tile_image(
 def load_tile_image(tile_type):
     image_filename = 'tiles/' + tile_type + '.png'
     return load_image(image_filename)
-
-
-class WaterTileTop(Tile):
-    def __init__(self, tile_coordinates, tile_image, tile_count, camera):
-        super().__init__(tile_coordinates, tile_image)
-
-        self._camera = camera
-        self._right_start = self.rect.right
-        self._right_step = tile_count * TILE_SIZE
-
-    def update(self):
-        view = self._camera.rect_view()
-        right = least_multiple(self._right_start, self._right_step, view.x + 1)
-        self.rect.right = right
-
-
-class WaterTileMiddle(WaterTileTop):
-    def __init__(
-        self, tile_coordinates, tile_image, tile_count_horizontal,
-        tile_count_vertical, camera
-    ):
-        super().__init__(
-            tile_coordinates, tile_image, tile_count_horizontal, camera
-        )
-
-        self._camera = camera
-        self._bottom_start = self.rect.bottom
-        self._bottom_step = tile_count_vertical * TILE_SIZE
-
-    def update(self):
-        super().update()
-
-        view = self._camera.rect_view()
-        bottom_min = max(view.y + 1, self._bottom_start)
-        bottom = least_multiple(
-            self._bottom_start, self._bottom_step, bottom_min
-        )
-        self.rect.bottom = bottom
-
-
-def least_multiple(origin, step, min_value):
-    step = abs(step)
-    return origin + math.ceil((min_value - origin) / step) * step
 
 
 class EndlessGridOfTilesRenderer:
