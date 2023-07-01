@@ -27,12 +27,12 @@ def main():
 
     current_level = 0
     previous_level = 1
-    level_completions = {}
+    levels_completed = {}
     for i in range(levels.MIN_LEVEL_NUMBER, levels.MAX_LEVEL_NUMBER + 1):
-        level_completions[i] = LevelCompletion(i, False)
+        levels_completed[i] = LevelCompleted(i, False)
 
     world = create_world(
-        current_level, previous_level, level_completions, camera
+        current_level, previous_level, levels_completed, camera
     )
 
     font_renderer = FontRenderer()
@@ -44,9 +44,9 @@ def main():
                 previous_level = current_level
                 current_level = world.player.entered_door.destination_level
                 if not world.player.entered_door.start:
-                    level_completions[previous_level].completed = True
+                    levels_completed[previous_level].completed = True
             world = create_world(
-                current_level, previous_level, level_completions, camera
+                current_level, previous_level, levels_completed, camera
             )
 
         for event in pygame.event.get():
@@ -81,7 +81,7 @@ def main():
         world.player.slashes.draw(surface)
 
         surface.camera_mode = False
-        world.door_text_viewer.draw(surface)
+        world.door_text_ui.draw(surface)
         surface.camera_mode = True
 
         text = "LEVEL 1 The quick brown fox jumped over the lazy dog."
@@ -648,10 +648,10 @@ class Animation:
         self.next_index = 0
 
 
-class DoorTextViewer:
-    def __init__(self, player, level_completions):
+class DoorTextUI:
+    def __init__(self, player, levels_completed):
         self._player = player
-        self._level_completions = level_completions
+        self._levels_completed = levels_completed
         self._font_renderer = FontRenderer()
 
     def draw(self, surface):
@@ -662,7 +662,7 @@ class DoorTextViewer:
             rect.midtop = WIDTH // 2, 32
             self._font_renderer.draw(surface, rect.topleft, text)
 
-            if self._level_completions[door.destination_level].completed:
+            if self._levels_completed[door.destination_level].completed:
                 text2 = '(COMPLETED)'
                 rect2 = self._font_renderer.calculate_rect(text2)
                 rect2.midtop = rect.centerx, rect.bottom
@@ -996,17 +996,17 @@ def translate_tile_char(tile_char, translation_map):
 class World:
     level: Level
     player: Player
-    door_text_viewer: DoorTextViewer
+    door_text_ui: DoorTextUI
     water_renderers: list
 
 
-def create_world(level_number, prev_level_number, level_completions, camera):
+def create_world(level_number, prev_level_number, levels_completed, camera):
     level = create_level(level_number, camera)
     starting_door = choose_door_to_start_at(level, prev_level_number)
     player = Player(starting_door.rect.midbottom, level)
-    door_text_viewer = DoorTextViewer(player, level_completions)
+    door_text_ui = DoorTextUI(player, levels_completed)
     water_renderers = create_water_renderers(level.water_level, camera)
-    return World(level, player, door_text_viewer, water_renderers)
+    return World(level, player, door_text_ui, water_renderers)
 
 
 def choose_door_to_start_at(level, prev_level_number):
@@ -1238,7 +1238,7 @@ class MovingPlatform(pygame.sprite.Sprite):
 
 
 @dataclasses.dataclass
-class LevelCompletion:
+class LevelCompleted:
     level_number: int
     completed: bool
 
