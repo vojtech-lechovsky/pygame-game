@@ -379,7 +379,7 @@ class PhysicalBody:
         self._jumping = True
 
     def _reset_jump(self):
-        self._v0 = 0
+        self._v0 = -1
         self._y0 = self.rect.y
         self._t = 0
         self._jumping = False
