@@ -27,7 +27,7 @@ def _create_moving_platform_objects_data(
 
 
 def get_level_data(level):
-    background_tiles_str = ""
+    background_tiles_str = ''
     doors = tuple()
     snakes = tuple()
     moving_platforms = tuple()

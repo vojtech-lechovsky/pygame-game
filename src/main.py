@@ -85,7 +85,7 @@ def main():
         world.door_text_ui.draw(surface)
         surface.camera_mode = True
 
-        text = "LEVEL 1 The quick brown fox jumped over the lazy dog."
+        text = 'LEVEL 1 The quick brown fox jumped over the lazy dog.'
         font_renderer.draw(surface, (22 * TILE_SIZE, 0 * TILE_SIZE), text)
         font_renderer_2.draw(surface, (22 * TILE_SIZE, 16), text)
 
