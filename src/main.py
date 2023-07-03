@@ -338,15 +338,23 @@ class PhysicalBody:
     def _get_position_adjustment_for_platforms_standing_on(self):
         if not self._platforms_standing_on:
             return 0, 0
+
         movements_by_y = {}
         for platform in self._platforms_standing_on:
             key = platform.last_move[1]
             value = platform.last_move[0]
             if key not in movements_by_y:
-                movements_by_y[key] = 0
-            movements_by_y[key] += value
+                movements_by_y[key] = []
+            movements_by_y[key].append(value)
         y = min(movements_by_y)
-        x = movements_by_y[y]
+
+        movements_x_list = movements_by_y[y]
+        x = 0
+        if -1 in movements_x_list and 1 not in movements_x_list:
+            x = -1
+        elif -1 not in movements_x_list and 1 in movements_x_list:
+            x = 1
+
         return x, y
 
     def _get_platforms_standing_on(self):
