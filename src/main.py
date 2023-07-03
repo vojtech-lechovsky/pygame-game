@@ -55,8 +55,9 @@ def main():
 
         t0 = time.time()
 
+        for moving_platform in world.level.moving_platforms:
+            moving_platform.update()
         world.level.snakes.update()
-        world.level.moving_platforms.update()
         world.player.update()
         world.player.slashes.update()
         if not world.player.is_dying():
@@ -74,7 +75,7 @@ def main():
         for renderer in world.level.endless_background_renderers:
             renderer.draw(surface)
         world.level.tiles.draw(surface)
-        world.level.moving_platforms.draw(surface)
+        world.level.moving_tiles.draw(surface)
         world.level.doors.draw(surface)
         world.level.snakes.draw(surface)
         surface.blit(world.player.image, world.player.rect)
@@ -121,7 +122,7 @@ class Player(pygame.sprite.Sprite):
         rect = pygame.Rect(0, 0, 15, 22)
         rect.midbottom = midbottom
         self._physical_body = PhysicalBody(
-            rect, level.get_hittable_objects(), level.moving_platforms
+            rect, level.get_hittable_objects(), level.moving_tiles
         )
 
         self.hitbox = pygame.Rect(0, 0, 0, 0)
@@ -203,6 +204,8 @@ class Player(pygame.sprite.Sprite):
                 walk_movement_x, jump_speed, collide
             )
             self._update_hitbox()
+        else:
+            self.hitbox.midbottom = self.entered_door.rect.midbottom
 
         animation = self._choose_animation(action, walk_movement_x)
         self._set_animation(animation)
@@ -279,11 +282,11 @@ class Player(pygame.sprite.Sprite):
 
 
 class PhysicalBody:
-    def __init__(self, rect, hittable_objects, moving_platforms):
+    def __init__(self, rect, hittable_objects, moving_tiles):
         self.rect = rect
 
         self._hittable_objects = hittable_objects
-        self._moving_platforms = moving_platforms
+        self._moving_tiles = moving_tiles
 
         self._g = 0.33
 
@@ -347,7 +350,7 @@ class PhysicalBody:
         return x, y
 
     def _get_platforms_standing_on(self):
-        return self._filter_sprites_standing_on(self._moving_platforms)
+        return self._filter_sprites_standing_on(self._moving_tiles)
 
     def _filter_sprites_standing_on(self, group):
         colliding_sprites = self._collide(group)
@@ -561,7 +564,17 @@ class Slash(pygame.sprite.Sprite):
             self.image = pygame.transform.flip(self.image, True, False)
 
 
-class Snake(pygame.sprite.Sprite):
+class MovableObject(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+
+        self.last_move = 0, 0
+
+    def move_as_part_of_moving_platform(self, movement):
+        self.last_move = movement
+
+
+class Snake(MovableObject):
     def __init__(self, x_movement_start, x_movement_end, rect_bottom):
         super().__init__()
 
@@ -605,6 +618,12 @@ class Snake(pygame.sprite.Sprite):
         offset = (-8, -18)
         self.rect.topleft = self.hitbox.topleft
         self.rect.move_ip(offset)
+
+    def move_as_part_of_moving_platform(self, movement):
+        super().move_as_part_of_moving_platform(movement)
+
+        self.hitbox.move_ip(movement)
+        self._update_rect()
 
 
 def collide_hitbox(sprite, other):
@@ -712,74 +731,98 @@ class CameraSurface(pygame.Surface):
 
 
 @dataclasses.dataclass
-class Level:
-    background_tiles: pygame.sprite.Group()
-    endless_background_renderers: list
+class MovingPlatformObjects:
+    background_tiles: pygame.sprite.Group
     tiles: pygame.sprite.Group
     doors: pygame.sprite.Group
     snakes: pygame.sprite.Group
-    moving_platforms: pygame.sprite.Group
+
+
+def create_moving_platform_objects(
+    moving_platform_objects_data, position_offset_tile_coordinates=(0, 0)
+):
+    bg_tiles_str = moving_platform_objects_data.background_tiles_str
+    background_tiles = tiles_from_str(
+        bg_tiles_str, position_offset_tile_coordinates, background=True
+    )
+
+    tiles_str = moving_platform_objects_data.tiles_str
+    tiles = tiles_from_str(tiles_str, position_offset_tile_coordinates)
+
+    position_offset = (
+        position_offset_tile_coordinates[0] * TILE_SIZE,
+        position_offset_tile_coordinates[1] * TILE_SIZE,
+    )
+
+    doors = pygame.sprite.Group()
+    for door_data in moving_platform_objects_data.doors:
+        door = Door(door_data.destination_level, door_data.start)
+        x = door_data.x * TILE_SIZE
+        y = (door_data.y + 1) * TILE_SIZE
+        door.rect.bottomleft = x + position_offset[0], y + position_offset[1]
+        doors.add(door)
+
+    snakes = pygame.sprite.Group()
+    for snake_data in moving_platform_objects_data.snakes:
+        x_movement_start = snake_data.x_movement_start_end[0] * TILE_SIZE
+        x_movement_end = snake_data.x_movement_start_end[1] * TILE_SIZE
+        rect_bottom = (snake_data.y + 1) * TILE_SIZE
+        snakes.add(Snake(
+            x_movement_start + position_offset[0],
+            x_movement_end + position_offset[0],
+            rect_bottom + position_offset[1]
+        ))
+
+    return MovingPlatformObjects(background_tiles, tiles, doors, snakes)
+
+
+@dataclasses.dataclass
+class Level(MovingPlatformObjects):
+    moving_tiles: pygame.sprite.Group
+    moving_platforms: list
+    endless_background_renderers: list
     water_level: int
 
     def get_hittable_objects(self):
         hittable_objects = pygame.sprite.Group()
-        hittable_objects.add((self.tiles, self.moving_platforms))
+        hittable_objects.add((self.tiles, self.moving_tiles))
         return hittable_objects
 
 
 def create_level(level_number, camera):
     level_data = levels.get_level_data(level_number)
 
-    bg_tiles_str = level_data.background_tiles_str
-    background_tiles = tiles_from_str(bg_tiles_str, background=True)
+    objects = create_moving_platform_objects(
+        level_data.moving_platform_objects
+    )
+
+    moving_tiles = pygame.sprite.Group()
+    moving_platforms = []
+    for moving_platform_data in level_data.moving_platforms:
+        moving_platform = MovingPlatform(moving_platform_data)
+        moving_platforms.append(moving_platform)
+
+        objects.background_tiles.add(moving_platform.objects.background_tiles)
+        moving_tiles.add(moving_platform.objects.tiles)
+        objects.doors.add(moving_platform.objects.doors)
+        objects.snakes.add(moving_platform.objects.snakes)
 
     endless_background_renderers = create_endless_background_renderers(
-        bg_tiles_str, camera
+        level_data.moving_platform_objects.background_tiles_str, camera
     )
 
-    tiles = tiles_from_str(level_data.tiles_str)
-
-    doors = pygame.sprite.Group()
-    for door_data in level_data.doors:
-        door = Door(door_data.destination_level, door_data.start)
-        x = door_data.x * TILE_SIZE
-        y = (door_data.y + 1) * TILE_SIZE
-        door.rect.bottomleft = x, y
-        doors.add(door)
-
-    snakes = pygame.sprite.Group()
-    for snake_data in level_data.snakes:
-        x_movement_start = snake_data.x_movement_start_end[0] * TILE_SIZE
-        x_movement_end = snake_data.x_movement_start_end[1] * TILE_SIZE
-        rect_bottom = (snake_data.y + 1) * TILE_SIZE
-        snakes.add(Snake(x_movement_start, x_movement_end, rect_bottom))
-
-    moving_platforms = pygame.sprite.Group()
-    for moving_platform_data in level_data.moving_platforms:
-        tiles_str = moving_platform_data.tiles_str
-        destinations = moving_platform_data.destinations
-        moving_platforms.add(MovingPlatform(tiles_str, destinations))
-
-    # # TEMP
-    # if level_number == 0:
-    #     tile = Tile('g3', (0, 9))
-    #     tile.rect.move_ip(1, 0)
-    #     tiles.add(tile)
-    #     tile = Tile('g3', (2, 7))
-    #     tile.rect.move_ip(0, -1)
-    #     tiles.add(tile)
-    #     tile = Tile('g3', (3, 8))
-    #     tiles.add(tile)
-    #     tile = Tile('g3', (3, 9))
-    #     tile.rect.move_ip(-1, 0)
-    #     tiles.add(tile)
-
-    water_level = level_data.tiles_str.count('\n') * TILE_SIZE
+    tile_height = get_tile_height(level_data.moving_platform_objects.tiles_str)
+    water_level = tile_height * TILE_SIZE
 
     return Level(
-        background_tiles, endless_background_renderers, tiles, doors, snakes,
-        moving_platforms, water_level
+        objects.background_tiles, objects.tiles, objects.doors, objects.snakes,
+        moving_tiles, moving_platforms, endless_background_renderers,
+        water_level
     )
+
+
+def get_tile_height(tiles_str):
+    return tiles_str.count('\n')
 
 
 def create_endless_background_renderers(background_tiles_str, camera):
@@ -839,11 +882,18 @@ def create_tile_images_dict(tile_char):
     return {0: create_tile_image(tile_type)}
 
 
-def tiles_from_str(tiles_str, background=False):
+def tiles_from_str(
+    tiles_str, position_offset_tile_coordinates=(0, 0), background=False
+):
     tiles = pygame.sprite.Group()
     for y, line in enumerate(tiles_str.splitlines()):
         for x, tile_char in enumerate(line):
             if tile_char != '-':
+                tile_coordinates = (
+                    x + position_offset_tile_coordinates[0],
+                    y + position_offset_tile_coordinates[1]
+                )
+
                 bg_left = None
                 bg_right = None
                 if not background:
@@ -860,7 +910,8 @@ def tiles_from_str(tiles_str, background=False):
                     bg_right = tile_char_to_tile_type(bg_right_char)
                 tile_type = tile_char_to_tile_type(tile_char, background)
                 tile_image = create_tile_image(tile_type, bg_left, bg_right)
-                tiles.add(Tile((x, y), tile_image))
+
+                tiles.add(Tile(tile_coordinates, tile_image))
     return tiles
 
 
@@ -1054,7 +1105,7 @@ def create_water_renderers(water_level, camera):
     return [water_renderer_left, water_renderer_right]
 
 
-class Tile(pygame.sprite.Sprite):
+class Tile(MovableObject):
     def __init__(self, tile_coordinates, tile_image):
         super().__init__()
 
@@ -1062,6 +1113,11 @@ class Tile(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.x = tile_coordinates[0] * TILE_SIZE
         self.rect.y = tile_coordinates[1] * TILE_SIZE
+
+    def move_as_part_of_moving_platform(self, movement):
+        super().move_as_part_of_moving_platform(movement)
+
+        self.rect.move_ip(movement)
 
 
 def create_tile_image(
@@ -1179,7 +1235,7 @@ def compute_line_of_tiles_coordinates(start_coordinates, increment, camera):
     return tiles_coordinates
 
 
-class Door(pygame.sprite.Sprite):
+class Door(MovableObject):
     def __init__(self, destination_level, start):
         super().__init__()
 
@@ -1195,43 +1251,59 @@ class Door(pygame.sprite.Sprite):
     def open(self):
         self.image = self._open_door_image
 
+    def move_as_part_of_moving_platform(self, movement):
+        super().move_as_part_of_moving_platform(movement)
 
-class MovingPlatform(pygame.sprite.Sprite):
-    def __init__(self, tiles_str, tile_destinations):
+        self.rect.move_ip(movement)
+
+
+class MovingPlatform:
+    def __init__(self, moving_platform_data):
         super().__init__()
 
         self._destinations = []
-        for tile_coordinates in tile_destinations:
+        for tile_coordinates in moving_platform_data.destinations:
             x = tile_coordinates[0] * TILE_SIZE
-            y = (tile_coordinates[1] + 1) * TILE_SIZE
+            y = tile_coordinates[1] * TILE_SIZE
             self._destinations.append((x, y))
-        self._next_destination_index = 0
+        self._position = self._destinations[0]
+        self._next_destination_index = 1
 
-        width = tiles_str.find('\n') * TILE_SIZE
-        height = tiles_str.count('\n') * TILE_SIZE
-        self.rect = pygame.Rect(0, 0, width, height)
-        self.rect.bottomleft = self._destinations[0]
-
-        self.image = pygame.Surface(self.rect.size, pygame.SRCALPHA)
-        tiles = tiles_from_str(tiles_str)
-        tiles.draw(self.image)
-
-        self.last_move = 0, 0
+        tile_height = get_tile_height(
+            moving_platform_data.moving_platform_objects.tiles_str
+        )
+        position_offset_tile_coordinates = (
+            moving_platform_data.destinations[0][0],
+            moving_platform_data.destinations[0][1] - tile_height + 1
+        )
+        self.objects = create_moving_platform_objects(
+            moving_platform_data.moving_platform_objects,
+            position_offset_tile_coordinates
+        )
 
     def update(self):
         next_destination = self._destinations[self._next_destination_index]
 
-        if self.rect.left > next_destination[0]:
-            self.last_move = -1, 0
-        elif self.rect.left < next_destination[0]:
-            self.last_move = 1, 0
-        if self.rect.bottom > next_destination[1]:
-            self.last_move = 0, -1
-        elif self.rect.bottom < next_destination[1]:
-            self.last_move = 0, 1
-        self.rect.move_ip(self.last_move)
+        movement = 0, 0
+        if self._position[0] > next_destination[0]:
+            movement = -1, 0
+        elif self._position[0] < next_destination[0]:
+            movement = 1, 0
+        if self._position[1] > next_destination[1]:
+            movement = 0, -1
+        elif self._position[1] < next_destination[1]:
+            movement = 0, 1
 
-        if self.rect.bottomleft == next_destination:
+        self._position = (
+            self._position[0] + movement[0],
+            self._position[1] + movement[1],
+        )
+        for objects_field in dataclasses.fields(self.objects):
+            object_group = getattr(self.objects, objects_field.name)
+            for movable_object in object_group:
+                movable_object.move_as_part_of_moving_platform(movement)
+
+        if self._position == next_destination:
             self._next_destination_index += 1
             if self._next_destination_index >= len(self._destinations):
                 self._next_destination_index = 0

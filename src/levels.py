@@ -2,17 +2,28 @@ import collections
 
 
 LevelData = collections.namedtuple(
-    'LevelData', 'background_tiles_str tiles_str doors snakes moving_platforms'
+    'LevelData', 'moving_platform_objects moving_platforms'
+)
+MovingPlatformData = collections.namedtuple(
+    'MovingPlatformData', 'moving_platform_objects destinations'
+)
+MovingPlatformObjectsData = collections.namedtuple(
+    'MovingPlatformObjectsData', 'background_tiles_str tiles_str doors snakes'
 )
 DoorData = collections.namedtuple('DoorData', 'x y destination_level start')
 SnakeData = collections.namedtuple('SnakeData', 'x_movement_start_end y')
-MovingPlatformData = collections.namedtuple(
-    'MovingPlatformData', 'tiles_str destinations'
-)
 
 
 MIN_LEVEL_NUMBER = 0
-MAX_LEVEL_NUMBER = 2
+MAX_LEVEL_NUMBER = 3
+
+
+def _create_moving_platform_objects_data(
+    background_tiles_str='', tiles_str='', doors=tuple(), snakes=tuple()
+):
+    return MovingPlatformObjectsData(
+        background_tiles_str, tiles_str, doors, snakes
+    )
 
 
 def get_level_data(level):
@@ -38,23 +49,32 @@ n----------------------------------------
         doors = (
             DoorData(24, 6, destination_level=1, start=True),
             DoorData(33, 6, destination_level=2, start=True),
+            DoorData(29, 9, destination_level=3, start=True),
         )
         snakes = (
             SnakeData((36, 40), 1),
         )
         moving_platforms = (
-            MovingPlatformData('BCCCD\n', (
-                (40, 10), (40, 2), (40, 7), (36, 7), (40, 7)
-            )),
-            MovingPlatformData('BCCCD\n', (
-                (3, 7), (16, 7)
-            )),
-            MovingPlatformData('BCCCD\n', (
-                (7, 5), (16, 5), (3, 5)
-            )),
-            MovingPlatformData('BCCCD\n', (
-                (1, 0), (16, 0)
-            )),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((40, 10), (40, 2), (40, 7), (36, 7), (40, 7))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((3, 7), (16, 7))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((7, 5), (16, 5), (3, 5))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((1, 0), (16, 0))
+            ),
         )
     elif level == 1:
         tiles_str = """\
@@ -522,7 +542,70 @@ aqqqqqqqqqqqqqe-------------------aqqqqqqqqqqqqqqqqqqqqqqe--aqqqqqqqqqqqqqe--AQQ
             DoorData(1, 8, destination_level=0, start=True),
             DoorData(12, 8, destination_level=0, start=False),
         )
+    elif level == 3:
+        tiles_str = """\
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+---------------------------------------------
+lnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnp
+aqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe
+aqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe
+aqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe
+aqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqe
+"""
+        doors = (
+            DoorData(1, 8, destination_level=0, start=True),
+        )
+        moving_platforms = (
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((3, 8), (8, 8), (8, 3), (3, 3))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((18, 8), (13, 8), (13, 3), (18, 3))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n'
+            ),
+                ((25, 8), (25, -2))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                background_tiles_str="""\
+-bccd
+-aqqe
+-aqqe
+-----
+""",
+                tiles_str="""\
+-----
+-----
+-----
+BCCCD
+""",
+                doors=(DoorData(2, 2, destination_level=0, start=False),)
+            ),
+                ((30, 8), (30, 3))
+            ),
+            MovingPlatformData(_create_moving_platform_objects_data(
+                tiles_str='BCCCD\n',
+                snakes=(SnakeData((0, 5), -1),)
+            ),
+                ((37, 8), (37, -2))
+            ),
+        )
 
     return LevelData(
-        background_tiles_str, tiles_str, doors, snakes, moving_platforms
+        MovingPlatformObjectsData(
+            background_tiles_str, tiles_str, doors, snakes
+        ),
+        moving_platforms
     )
