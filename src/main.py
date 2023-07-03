@@ -158,11 +158,15 @@ class Player(pygame.sprite.Sprite):
             )
             self._update_hitbox()
 
+        collided_with_snake = bool(pygame.sprite.spritecollideany(
+            self, self._level.snakes, collided=collide_hitbox
+        ))
+
         jump_speed = 0
 
         if (
             action not in ('die', 'door')
-            and (pressed_keys[pygame.K_q] or crushed)
+            and (pressed_keys[pygame.K_q] or crushed or collided_with_snake)
         ):
             action = 'die'
             jump_speed = 3
