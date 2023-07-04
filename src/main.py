@@ -36,9 +36,6 @@ def main():
     )
     camera.follow(world.player.hitbox)
 
-    font_renderer = FontRenderer()
-    font_renderer_2 = FontRenderer2()
-
     while True:
         if not world.player.alive:
             if world.player.entered_door is not None:
@@ -86,10 +83,6 @@ def main():
         surface.camera_mode = False
         world.door_text_ui.draw(surface)
         surface.camera_mode = True
-
-        text = 'LEVEL 1 The quick brown fox jumped over the lazy dog.'
-        font_renderer.draw(surface, (22 * TILE_SIZE, 0 * TILE_SIZE), text)
-        font_renderer_2.draw(surface, (22 * TILE_SIZE, 16), text)
 
         t02 = time.time()
         upscaled = pygame.transform.scale(surface, WINDOW_RES)
