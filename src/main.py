@@ -61,7 +61,7 @@ def main():
         world.player.update()
         world.player.slashes.update()
         if not world.player.is_dying():
-            camera.follow(world.player)
+            camera.follow(world.player.hitbox)
 
         print(f'update: {time.time() - t0:4f} ', end='')
 
@@ -158,9 +158,12 @@ class Player(pygame.sprite.Sprite):
             )
             self._update_hitbox()
 
+        t0 = time.time()
         collided_with_snake = bool(pygame.sprite.spritecollideany(
             self, self._level.snakes, collided=collide_hitbox
         ))
+        t = time.time() - t0
+        print(f'collided_with_snake: {t:4f}')
 
         jump_speed = 0
 
@@ -222,9 +225,12 @@ class Player(pygame.sprite.Sprite):
 
     def choose_door_to_walk_in(self):
         door_to_walk_in = None
+        t0 = time.time()
         for door in self._level.doors:
             if door.rect.collidepoint(self.hitbox.center):
                 door_to_walk_in = door
+        t = time.time() - t0
+        print(f'choose_door_to_walk_in: {t:4f}')
         return door_to_walk_in
 
     def _door(self, door_to_walk_in):
@@ -285,6 +291,10 @@ class Player(pygame.sprite.Sprite):
         self.rect.move_ip(offset)
 
 
+def collide_hitbox(sprite, other):
+    return sprite.hitbox.colliderect(other.hitbox)
+
+
 class PhysicalBody:
     def __init__(self, rect, hittable_objects, moving_tiles):
         self.rect = rect
@@ -327,7 +337,11 @@ class PhysicalBody:
         self._platforms_standing_on = self._get_platforms_standing_on()
 
     def on_ground(self):
-        return bool(self._filter_sprites_standing_on(self._hittable_objects))
+        t0 = time.time()
+        result = bool(self._filter_sprites_standing_on(self._hittable_objects))
+        t = time.time() - t0
+        print(f'on_ground: {t:4f}')
+        return result
 
     def calculate_instantaneous_speed_y(self):
         return -self._v0 + self._g * self._t
@@ -384,7 +398,7 @@ class PhysicalBody:
 
     def _collide(self, group):
         return pygame.sprite.spritecollide(
-            self, group, False, collided=collide_hitbox
+            self, group, False
         )
 
     def _jump(self, speed):
@@ -481,13 +495,13 @@ def uncollide_rect_y(rect, rect_last_move, hittable_objects):
 def undo_y_movement(sprites):
     for sprite in sprites:
         last_move = get_last_move(sprite)
-        get_hitbox(sprite).move_ip(0, -last_move[1])
+        sprite.rect.move_ip(0, -last_move[1])
 
 
 def redo_y_movement(sprites):
     for sprite in sprites:
         last_move = get_last_move(sprite)
-        get_hitbox(sprite).move_ip(0, last_move[1])
+        sprite.rect.move_ip(0, last_move[1])
 
 
 def get_last_move(sprite):
@@ -539,7 +553,7 @@ def rectcollide(rect, group):
     sprite = pygame.sprite.Sprite()
     sprite.rect = rect
     colliding_sprites = pygame.sprite.spritecollide(
-        sprite, group, False, collided=collide_hitbox
+        sprite, group, False
     )
     return colliding_sprites
 
@@ -548,7 +562,7 @@ def rectcollideany(rect, group):
     sprite = pygame.sprite.Sprite()
     sprite.rect = rect
     colliding_sprites = pygame.sprite.spritecollideany(
-        sprite, group, collided=collide_hitbox
+        sprite, group
     )
     return colliding_sprites
 
@@ -638,16 +652,6 @@ class Snake(MovableObject):
         self._update_rect()
 
 
-def collide_hitbox(sprite, other):
-    hitbox1 = get_hitbox(sprite)
-    hitbox2 = get_hitbox(other)
-    return hitbox1.colliderect(hitbox2)
-
-
-def get_hitbox(sprite):
-    return sprite.hitbox if hasattr(sprite, 'hitbox') else sprite.rect
-
-
 class Animation:
     def __init__(self, name, frames, frame_duration, cycle=False):
         self.name = name
@@ -704,10 +708,9 @@ class Camera:
     def __init__(self):
         self.offset = 0, 0
 
-    def follow(self, sprite):
-        hitbox = get_hitbox(sprite)
-        x = (WIDTH - hitbox.width) // 2 - hitbox.x
-        y = (HEIGHT - hitbox.height) // 2 - hitbox.y
+    def follow(self, rect):
+        x = (WIDTH - rect.width) // 2 - rect.x
+        y = (HEIGHT - rect.height) // 2 - rect.y
         self.offset = x, y
 
     def rect_view(self):
