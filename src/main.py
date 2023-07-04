@@ -693,16 +693,25 @@ class DoorTextUI:
     def draw(self, surface):
         door = self._player.choose_door_to_walk_in()
         if door:
-            text = 'LEVEL ' + str(door.destination_level)
-            rect = self._font_renderer.calculate_rect(text)
-            rect.midtop = WIDTH // 2, 32
-            self._font_renderer.draw(surface, rect.topleft, text)
+            line_1 = ''
+            line_2 = ''
+            if door.destination_level != 0:
+                line_1 = 'LEVEL ' + str(door.destination_level)
+                if self._levels_completed[door.destination_level].completed:
+                    line_2 = '(COMPLETED)'
+            else:
+                if door.start:
+                    line_1 = 'GO BACK'
+                else:
+                    line_1 = 'FINISH'
 
-            if self._levels_completed[door.destination_level].completed:
-                text2 = '(COMPLETED)'
-                rect2 = self._font_renderer.calculate_rect(text2)
-                rect2.midtop = rect.centerx, rect.bottom
-                self._font_renderer.draw(surface, rect2.topleft, text2)
+            rect = self._font_renderer.calculate_rect(line_1)
+            rect.midtop = WIDTH // 2, 32
+            self._font_renderer.draw(surface, rect.topleft, line_1)
+
+            rect2 = self._font_renderer.calculate_rect(line_2)
+            rect2.midtop = rect.centerx, rect.bottom
+            self._font_renderer.draw(surface, rect2.topleft, line_2)
 
 
 class Camera:
