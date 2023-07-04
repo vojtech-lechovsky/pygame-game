@@ -10,20 +10,34 @@ import pygame
 import levels
 
 
-WINDOW_RES = 1280, 720
 PIXEL_SIZE = 4
-SIZE = WIDTH, HEIGHT = WINDOW_RES[0] // PIXEL_SIZE, WINDOW_RES[1] // PIXEL_SIZE
 TILE_SIZE = 16
 FPS = 60
+
+window_resolution = 0, 0
+surface_size = surface_width, surface_height = 0, 0
+
+
+def update_global_variables(window_res):
+    global window_resolution, surface_size, surface_width, surface_height
+
+    window_resolution = window_res
+    surface_size = surface_width, surface_height = (
+        window_resolution[0] // PIXEL_SIZE,
+        window_resolution[1] // PIXEL_SIZE,
+    )
+
+
+update_global_variables((1280, 720))
 
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode(WINDOW_RES)
+    screen = pygame.display.set_mode(window_resolution)
     clock = pygame.time.Clock()
 
     camera = Camera()
-    surface = CameraSurface(camera, SIZE)
+    surface = CameraSurface(camera, surface_size)
 
     current_level = 0
     previous_level = 1
@@ -49,7 +63,11 @@ def main():
             camera.follow(world.player.hitbox)
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            if event.type == pygame.WINDOWRESIZED:
+                update_global_variables((event.x, event.y))
+                surface = surface.create_new(surface_size)
+                camera.resize()
+            elif event.type == pygame.QUIT:
                 sys.exit()
 
         t0 = time.time()
@@ -85,7 +103,7 @@ def main():
         surface.camera_mode = True
 
         t02 = time.time()
-        upscaled = pygame.transform.scale(surface, WINDOW_RES)
+        upscaled = pygame.transform.scale(surface, window_resolution)
         print(f'draw.upscale: {time.time() - t02:4f} ', end='')
         screen.blit(upscaled, (0, 0))
         pygame.display.flip()
@@ -699,7 +717,7 @@ class DoorTextUI:
                     line_1 = 'FINISH'
 
             rect = self._font_renderer.calculate_rect(line_1)
-            rect.midtop = WIDTH // 2, 32
+            rect.midtop = surface_width // 2, 32
             self._font_renderer.draw(surface, rect.topleft, line_1)
 
             rect2 = self._font_renderer.calculate_rect(line_2)
@@ -710,14 +728,20 @@ class DoorTextUI:
 class Camera:
     def __init__(self):
         self.offset = 0, 0
+        self._last_followed_rect = None
 
     def follow(self, rect):
-        x = (WIDTH - rect.width) // 2 - rect.x
-        y = (HEIGHT - rect.height) // 2 - rect.y
+        self._last_followed_rect = rect
+        x = (surface_width - rect.width) // 2 - rect.x
+        y = (surface_height - rect.height) // 2 - rect.y
         self.offset = x, y
 
+    def resize(self):
+        if self._last_followed_rect:
+            self.follow(self._last_followed_rect)
+
     def get_rect_view(self):
-        return pygame.Rect((-self.offset[0], -self.offset[1]), SIZE)
+        return pygame.Rect((-self.offset[0], -self.offset[1]), surface_size)
 
 
 class CameraSurface(pygame.Surface):
@@ -725,6 +749,11 @@ class CameraSurface(pygame.Surface):
         super().__init__(*args, **kwargs)
         self.camera_mode = True
         self._camera = camera
+
+    def create_new(self, *args, **kwargs):
+        new_surface = CameraSurface(self._camera, *args, **kwargs)
+        new_surface.camera_mode = self.camera_mode
+        return new_surface
 
     def blit(self, source, dest, area=None, special_flags=0):
         if not self.camera_mode:
