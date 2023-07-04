@@ -33,7 +33,7 @@ update_global_variables((1280, 720))
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode(window_resolution)
+    screen = pygame.display.set_mode(window_resolution, pygame.RESIZABLE)
     clock = pygame.time.Clock()
 
     camera = Camera()
