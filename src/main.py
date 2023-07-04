@@ -158,12 +158,9 @@ class Player(pygame.sprite.Sprite):
             )
             self._update_hitbox()
 
-        t0 = time.time()
         collided_with_snake = bool(pygame.sprite.spritecollideany(
             self, self._level.snakes, collided=collide_hitbox
         ))
-        t = time.time() - t0
-        print(f'collided_with_snake: {t:4f}')
 
         jump_speed = 0
 
@@ -225,12 +222,9 @@ class Player(pygame.sprite.Sprite):
 
     def choose_door_to_walk_in(self):
         door_to_walk_in = None
-        t0 = time.time()
         for door in self._level.doors:
             if door.rect.collidepoint(self.hitbox.center):
                 door_to_walk_in = door
-        t = time.time() - t0
-        print(f'choose_door_to_walk_in: {t:4f}')
         return door_to_walk_in
 
     def _door(self, door_to_walk_in):
@@ -337,11 +331,7 @@ class PhysicalBody:
         self._platforms_standing_on = self._get_platforms_standing_on()
 
     def on_ground(self):
-        t0 = time.time()
-        result = bool(self._filter_sprites_standing_on(self._hittable_objects))
-        t = time.time() - t0
-        print(f'on_ground: {t:4f}')
-        return result
+        return bool(self._filter_sprites_standing_on(self._hittable_objects))
 
     def calculate_instantaneous_speed_y(self):
         return -self._v0 + self._g * self._t
