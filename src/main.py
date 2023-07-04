@@ -34,6 +34,7 @@ def main():
     world = create_world(
         current_level, previous_level, levels_completed, camera
     )
+    camera.follow(world.player.hitbox)
 
     font_renderer = FontRenderer()
     font_renderer_2 = FontRenderer2()
@@ -48,6 +49,7 @@ def main():
             world = create_world(
                 current_level, previous_level, levels_completed, camera
             )
+            camera.follow(world.player.hitbox)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -69,8 +71,6 @@ def main():
 
         surface.fill((93, 152, 141))
 
-        for renderer in world.water_renderers:
-            renderer.draw(surface)
         world.level.background_tiles.draw(surface)
         for renderer in world.level.endless_background_renderers:
             renderer.draw(surface)
@@ -79,6 +79,8 @@ def main():
         world.level.doors.draw(surface)
         world.level.snakes.draw(surface)
         surface.blit(world.player.image, world.player.rect)
+        for renderer in world.water_renderers:
+            renderer.draw(surface)
         world.player.slashes.draw(surface)
 
         surface.camera_mode = False
@@ -102,7 +104,7 @@ def main():
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, midbottom, level):
+    def __init__(self, midbottom, level, camera):
         super().__init__()
 
         animations_list = [
@@ -136,20 +138,29 @@ class Player(pygame.sprite.Sprite):
         self.slashes = pygame.sprite.Group()
 
         self._level = level
+        self._camera = camera
 
     def update(self):
         pressed_keys = pygame.key.get_pressed()
         pressed_buttons = pygame.mouse.get_pressed()
 
         action = None
-        if self._animation.name in ('slash', 'door', 'die'):
+        if (
+            self._animation.name in ('door', 'die')
+            or self._animation.name == 'slash'
+            and not self._animation.is_at_end()
+        ):
             action = self._animation.name
 
-        if action in ('slash', 'door') and self._animation.is_at_end():
-            if action == 'door':
-                self.alive = False
-                return
-            action = None
+        if (
+            self.hitbox.top > self._level.water_level
+            or action == 'die'
+            and self.hitbox.top > self._camera.get_rect_view().bottom
+            or action == 'door' and self._animation.is_at_end()
+            or not self.alive
+        ):
+            self.alive = False
+            return
 
         crushed = False
         if action not in ('door', 'die'):
@@ -703,7 +714,7 @@ class Camera:
         y = (HEIGHT - rect.height) // 2 - rect.y
         self.offset = x, y
 
-    def rect_view(self):
+    def get_rect_view(self):
         return pygame.Rect((-self.offset[0], -self.offset[1]), SIZE)
 
 
@@ -1059,7 +1070,7 @@ class World:
 def create_world(level_number, prev_level_number, levels_completed, camera):
     level = create_level(level_number, camera)
     starting_door = choose_door_to_start_at(level, prev_level_number)
-    player = Player(starting_door.rect.midbottom, level)
+    player = Player(starting_door.rect.midbottom, level, camera)
     door_text_ui = DoorTextUI(player, levels_completed)
     water_renderers = create_water_renderers(level.water_level, camera)
     return World(level, player, door_text_ui, water_renderers)
@@ -1202,36 +1213,36 @@ class EndlessLineOfTilesRenderer:
 def compute_line_of_tiles_coordinates(start_coordinates, increment, camera):
     tiles_coordinates = []
     if increment == (-1, 0):
-        min_tile_x = camera.rect_view().left // TILE_SIZE
+        min_tile_x = camera.get_rect_view().left // TILE_SIZE
         if start_coordinates[0] >= min_tile_x:
-            max_tile_x = camera.rect_view().right // TILE_SIZE
+            max_tile_x = camera.get_rect_view().right // TILE_SIZE
             max_tile_x = min(max_tile_x, start_coordinates[0])
             for x in range(min_tile_x, max_tile_x + 1):
                 coordinates = x, start_coordinates[1]
                 relative_i = start_coordinates[0] - x
                 tiles_coordinates.append((relative_i, coordinates))
     elif increment == (1, 0):
-        max_tile_x = camera.rect_view().right // TILE_SIZE
+        max_tile_x = camera.get_rect_view().right // TILE_SIZE
         if start_coordinates[0] <= max_tile_x:
-            min_tile_x = camera.rect_view().left // TILE_SIZE
+            min_tile_x = camera.get_rect_view().left // TILE_SIZE
             min_tile_x = max(min_tile_x, start_coordinates[0])
             for x in range(min_tile_x, max_tile_x + 1):
                 coordinates = x, start_coordinates[1]
                 relative_i = x - start_coordinates[0]
                 tiles_coordinates.append((relative_i, coordinates))
     elif increment == (0, -1):
-        min_tile_y = camera.rect_view().top // TILE_SIZE
+        min_tile_y = camera.get_rect_view().top // TILE_SIZE
         if start_coordinates[1] >= min_tile_y:
-            max_tile_y = camera.rect_view().bottom // TILE_SIZE
+            max_tile_y = camera.get_rect_view().bottom // TILE_SIZE
             max_tile_y = min(max_tile_y, start_coordinates[1])
             for y in range(min_tile_y, max_tile_y + 1):
                 coordinates = start_coordinates[0], y
                 relative_i = start_coordinates[1] - y
                 tiles_coordinates.append((relative_i, coordinates))
     elif increment == (0, 1):
-        max_tile_y = camera.rect_view().bottom // TILE_SIZE
+        max_tile_y = camera.get_rect_view().bottom // TILE_SIZE
         if start_coordinates[1] <= max_tile_y:
-            min_tile_y = camera.rect_view().top // TILE_SIZE
+            min_tile_y = camera.get_rect_view().top // TILE_SIZE
             min_tile_y = max(min_tile_y, start_coordinates[1])
             for y in range(min_tile_y, max_tile_y + 1):
                 coordinates = start_coordinates[0], y
