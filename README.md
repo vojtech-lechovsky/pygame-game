@@ -1,3 +1,11 @@
+# Game controls
+| Input | Description |
+| - | - |
+| `WASD` | Player movement |
+| `Mouse Left` | Attack (doesn't do anything except display an animation) |
+| `E` | Enter door |
+| `Q` | Die (restart level) |
+
 # How to run
 Either download and run the PygameGame.exe file, or run the game from source using the commands below.
 
