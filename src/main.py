@@ -4,6 +4,7 @@ import itertools
 import os
 import sys
 import time
+from pathlib import Path
 
 import pygame
 
@@ -1422,7 +1423,7 @@ class FontRenderer:
             self._images[character] = image
 
         self._character_widths = {}
-        fontdef_file = open('assets/font/fontdef.txt', encoding='utf-8')
+        fontdef_file = open(resource_path('assets/font/fontdef.txt'), encoding='utf-8')
         for line in fontdef_file:
             character = line[0]
             width = line[2:-1]
@@ -1494,28 +1495,35 @@ _images = {}
 def load_image(name):
     if name not in _images:
         full_name = os.path.join('assets', name)
+        absolute_path = resource_path(full_name)
         try:
-            image = pygame.image.load(full_name)
+            image = pygame.image.load(absolute_path)
             if image.get_alpha() is None:
                 image = image.convert()
             else:
                 image = image.convert_alpha()
         except pygame.error as e:
-            print('Cannot load image: ', full_name)
+            print('Cannot load image: ', absolute_path)
             raise SystemExit from e
         _images[name] = image
     return _images[name]
 
-
 def load_images(dir_name):
     images = []
+
     full_dir_name = os.path.join('assets', dir_name)
-    files = [os.path.join(full_dir_name, f) for f in os.listdir(full_dir_name)]
-    regular_files = filter(os.path.isfile, files)
+    files = [os.path.join(full_dir_name, f) for f in os.listdir(resource_path(full_dir_name))]
+    regular_files = filter(lambda f: os.path.isfile(resource_path(f)), files)
     image_files = filter(lambda f: f.endswith('.png'), regular_files)
+
     for image_file in sorted(image_files):
         images.append(load_image(image_file[7:]))
+
     return images
+
+def resource_path(relative_path):
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return str(base / relative_path)
 
 
 if __name__ == '__main__':
