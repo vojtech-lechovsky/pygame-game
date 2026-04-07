@@ -2,7 +2,7 @@
 Either download and run the PygameGame.exe file, or run the game from source using the commands below.
 
 ## Windows 11 CMD
-```dos
+```batch
 git clone https://gitlab.com/vojtechlechovsky/pygame-game.git
 cd pygame-game
 py install 3.12
