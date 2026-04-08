@@ -1,4 +1,4 @@
-# Game controls
+# Game Controls
 | Input | Description |
 | - | - |
 | `WASD` | Player movement |
@@ -6,7 +6,7 @@
 | `E` | Enter door |
 | `Q` | Die (restart level) |
 
-# How to run
+# How To Run
 Either download and run the PygameGame.exe file, or run the game from source using the commands below.
 
 ## Windows 11 CMD
