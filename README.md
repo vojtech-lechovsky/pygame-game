@@ -1,6 +1,6 @@
 # Short Video Demonstration
 
-https://github.com/user-attachments/assets/35da1579-8cb2-4b33-b358-77ee9bbf6704
+https://github.com/user-attachments/assets/e58d3d13-b8c3-47c2-9ffc-0cf7af6f36f4
 
 # Game Controls
 | Input | Description |
