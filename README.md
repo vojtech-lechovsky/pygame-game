@@ -1,3 +1,7 @@
+# 2D Platform Game
+
+A 2D platform game written in Python using Pygame, featuring movement, collisions, jumping, animations, multiple levels, moving platforms, and snake enemies. The project uses custom game logic without a dedicated physics engine.
+
 # Short Video Demonstration
 
 https://github.com/user-attachments/assets/e58d3d13-b8c3-47c2-9ffc-0cf7af6f36f4
@@ -6,9 +10,9 @@ https://github.com/user-attachments/assets/e58d3d13-b8c3-47c2-9ffc-0cf7af6f36f4
 | Input | Description |
 | - | - |
 | `WASD` | Player movement |
-| `Mouse Left` | Attack (doesn't do anything except display an animation) |
+| `Mouse Left` | Attack animation |
 | `E` | Enter door |
-| `Q` | Die (restart level) |
+| `Q` | Restart level |
 
 # How To Run
 Either download and run the PygameGame.exe file, or run the game from source using the commands below.
