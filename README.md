@@ -15,7 +15,7 @@ Either download and run the PygameGame.exe file, or run the game from source usi
 
 ## Windows 11 CMD
 ```batch
-git clone https://gitlab.com/vojtechlechovsky/pygame-game.git
+git clone https://github.com/vojtech-lechovsky/pygame-game.git
 cd pygame-game
 py install 3.12
 py -3.12 -m venv .venv
@@ -26,7 +26,7 @@ python src\main.py
 
 ## Windows 11 PowerShell
 ```powershell
-git clone https://gitlab.com/vojtechlechovsky/pygame-game.git
+git clone https://github.com/vojtech-lechovsky/pygame-game.git
 cd pygame-game
 py install 3.12
 py -3.12 -m venv .venv
@@ -38,7 +38,7 @@ python src\main.py
 
 ## Ubuntu 24.04
 ```bash
-git clone https://gitlab.com/vojtechlechovsky/pygame-game.git
+git clone https://github.com/vojtech-lechovsky/pygame-game.git
 cd pygame-game
 sudo apt install python3.12-venv
 python3 -m venv .venv
