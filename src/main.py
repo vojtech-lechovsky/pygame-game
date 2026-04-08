@@ -81,7 +81,7 @@ def main():
         if not world.player.is_dying():
             camera.follow(world.player.hitbox)
 
-        print(f'update: {time.time() - t0:4f} ', end='')
+        # print(f'update: {time.time() - t0:4f} ', end='')
 
         t0 = time.time()
 
@@ -105,14 +105,14 @@ def main():
 
         t02 = time.time()
         upscaled = pygame.transform.scale(surface, window_resolution)
-        print(f'draw.upscale: {time.time() - t02:4f} ', end='')
+        # print(f'draw.upscale: {time.time() - t02:4f} ', end='')
         screen.blit(upscaled, (0, 0))
         pygame.display.flip()
 
-        print(f'draw: {time.time() - t0:4f} ', end='')
+        # print(f'draw: {time.time() - t0:4f} ', end='')
 
         delta = clock.tick(FPS)
-        print(f'FPS: {clock.get_fps():4f} delta: {delta}')
+        # print(f'FPS: {clock.get_fps():4f} delta: {delta}')
 
 
 class Player(pygame.sprite.Sprite):
